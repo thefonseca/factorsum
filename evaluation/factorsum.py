@@ -4,7 +4,6 @@ import time
 import logging
 
 import fire
-import pandas as pd
 
 from .utils import get_targets, get_output_path, load_eval_data
 from .evaluation import evaluate_sampled
@@ -133,7 +132,7 @@ def eval_with_guidance(
 
 def evaluate(
     data_dir="data",
-    max_samples=1000,
+    max_samples=10000,
     dataset_name="arxiv",
     split="test",
     content_types=None,
