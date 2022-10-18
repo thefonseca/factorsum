@@ -234,7 +234,7 @@ def eval_sampled_job(
 
 
 def evaluate_sampled(
-    preds,
+    summary_views,
     targets,
     doc_ids,
     text_guidance=None,
@@ -254,15 +254,17 @@ def evaluate_sampled(
     seed=17,
 ):
 
-    unique_doc_ids = doc_ids.unique()
-    _pred_views = []
+    unique_doc_ids = list(set(doc_ids))
+    _summary_views = []
     _targets = []
     _text_guidance = []
     _token_budget = []
 
     for doc_id in unique_doc_ids[:n_samples]:
-        pred_views = preds[doc_ids == doc_id].values
-        _pred_views.append(pred_views)
+        doc_summary_views = [
+            view for d_id, view in zip(doc_ids, summary_views) if d_id == doc_id
+        ]
+        _summary_views.append(doc_summary_views)
         _targets.append(targets[doc_id])
 
         if text_guidance is not None:
@@ -275,9 +277,9 @@ def evaluate_sampled(
         else:
             _token_budget.append(token_budget)
 
-    results = p_map(
-        lambda pred_views, target, text_guidance, token_budget: eval_sampled_job(
-            pred_views,
+    summaries = p_map(
+        lambda sample_summary_views, target, text_guidance, token_budget: eval_sampled_job(
+            sample_summary_views,
             target,
             text_guidance=text_guidance,
             token_budget=token_budget,
@@ -289,13 +291,11 @@ def evaluate_sampled(
             budget_weight=budget_weight,
             method=method,
         ),
-        _pred_views,
+        _summary_views,
         _targets,
         _text_guidance,
         _token_budget,
     )
-
-    summaries = [r[0] for r in results]
 
     return evaluate(
         summaries,

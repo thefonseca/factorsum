@@ -9,6 +9,7 @@ def _get_params():
     params["token_budget"] = 200
     params["views_per_doc"] = 20
     params["sample_factor"] = 5
+    params["sample_type"] = "random"
 
     # we adjust budgets so that the average predicted summary words
     # is close to the validation set average reference summary words

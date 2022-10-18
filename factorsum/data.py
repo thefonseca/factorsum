@@ -267,6 +267,9 @@ def _load_dataset_split(
             data_dir=data_dir,
             cache_dir=cache_dir,
         )
+
+    keys = list(data.keys())
+    logger.info(f"Loaded dataset with {len(data[keys[0]])} samples and keys: {keys}")
     return data
 
 
@@ -458,10 +461,10 @@ def load_dataset(
     sample_factor=None,
     views_per_doc=None,
     split=None,
-    seed=17,
     include_oracles=True,
     data_dir="data",
     cache_dir=None,
+    seed=17,
 ):
 
     dataset = None
@@ -475,9 +478,9 @@ def load_dataset(
             sample_type=sample_type,
             sample_factor=sample_factor,
             views_per_doc=views_per_doc,
-            cache_dir=cache_dir,
-            data_dir=data_dir,
             include_oracles=include_oracles,
+            data_dir=data_dir,
+            cache_dir=cache_dir,
         )
 
         if dataset is None:
@@ -507,7 +510,7 @@ def prepare_dataset(
 ):
 
     splits = _get_splits(splits)
-    print(splits)
+
     for split in splits:
         logger.info(f"Preparing {dataset_name} {split} set...")
         data_file = _data_split_filename(

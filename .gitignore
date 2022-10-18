@@ -1,4 +1,5 @@
 artifacts/
 data/
+output/
 __pycache__/
 wandb/
