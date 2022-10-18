@@ -82,8 +82,10 @@ def load_intrinsic_model(model_name_or_path, model_dir="artifacts"):
     logger.info(f"Loading intrinsic importance model from {model_path}...")
     tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = f"{device}:{torch.cuda.current_device()}"
+    try:
+        device = torch.cuda.current_device()
+    except:
+        device = None
     summarizer = pipeline(
         "summarization", model=model, tokenizer=tokenizer, device=device
     )
