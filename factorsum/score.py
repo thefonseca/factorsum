@@ -27,7 +27,7 @@ def log_rouge_scores(scores):
 
 def show_extrinsic_scores(score):
     if "rouge" in score:
-        print("\n> ROUGE score:")
+        print("\n> ROUGE scores:")
         log_rouge_scores(score["rouge"])
 
     if "budget_error" in score:

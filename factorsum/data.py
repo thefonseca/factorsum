@@ -393,6 +393,64 @@ def _dataset_to_csv(
         ds_df.to_csv(save_to, index=None)
 
 
+def _maybe_fix_predictions(preds, expected_length, invalid_samples=None):
+    if invalid_samples is None:
+        invalid_samples = []
+
+    if expected_length < len(preds):
+        preds = [p for idx, p in enumerate(preds) if idx not in invalid_samples]
+    assert expected_length == len(preds), f"{expected_length} != {len(preds)}"
+    return preds
+
+
+def load_summaries(
+    dataset_name,
+    split,
+    model_name,
+    training_domain,
+    data_dir,
+    expected_sample_count=None,
+):
+    filename = (
+        f"{dataset_name}-{split}-summary_preds-{model_name}-{training_domain}.pkl"
+    )
+
+    try:
+        summaries = _load_pickle(filename, data_dir)
+    except FileNotFoundError as err:
+        logger.warning(f"File does not exist: {filename}")
+        return
+
+    if "pubmed-validation-summary_preds" in filename:
+        # these pubmed samples from the validation set have empty articles
+        invalid_samples = [2320, 4923]
+    else:
+        invalid_samples = []
+
+    if expected_sample_count:
+        summaries = _maybe_fix_predictions(
+            summaries, expected_sample_count, invalid_samples=invalid_samples
+        )
+    logger.info(f"Loaded {len(summaries)} summaries from {filename}")
+    return summaries
+
+
+def load_summary_views(
+    dataset_name,
+    split,
+    data_dir,
+    training_domain=None,
+    intrinsic_model_id=None,
+):
+    if training_domain is None:
+        training_domain = dataset_name
+
+    filename = f"{dataset_name}-{split}-summary_views-bart-{training_domain}-run={intrinsic_model_id}.pkl"
+    summary_views = _load_pickle(filename, data_dir)
+    logger.info(f"Loaded {len(summary_views)} summary views from {filename}")
+    return summary_views
+
+
 def load_dataset(
     dataset_path,
     dataset_name,

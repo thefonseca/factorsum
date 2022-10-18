@@ -72,6 +72,8 @@ def model_params(domain_name, **kwargs):
     default_params = [key for key in params.keys() if key not in domains]
 
     _model_params = params[domain_name]
+    _model_params["domain_name"] = domain_name
+
     for param_key in default_params:
         param_value = params[domain_name].get(param_key, params[param_key])
         _model_params[param_key] = param_value

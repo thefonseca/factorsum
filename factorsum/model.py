@@ -7,7 +7,7 @@ import nltk
 
 from .extrinsic import find_best_summary
 from .config import model_params
-from .data import load_dataset
+from .data import load_dataset, load_summaries
 from .sampling import get_document_views
 from .score import extrinsic_scores, show_extrinsic_scores
 from .utils import load_intrinsic_model
@@ -16,6 +16,8 @@ try:
     nltk.data.find("tokenizers/punkt")
 except:
     nltk.download("punkt", quiet=True)
+
+logger = logging.getLogger(__name__)
 
 
 def get_source_guidance(source, token_budget, verbose=False):
@@ -80,6 +82,53 @@ class FactorSum:
         return summary
 
 
+def _summarize(
+    model,
+    source,
+    params,
+    target=None,
+    content_guidance_type=None,
+    content_guidance=None,
+    source_token_budget=None,
+):
+
+    if content_guidance_type is None:
+        content_guidance_type = "no"
+
+    budget_adjust_key = f"{content_guidance_type}_content_fixed_budget_adjust"
+    budget_adjust = params.get(budget_adjust_key, 0)
+    budget_guidance = params["token_budget"] + budget_adjust
+
+    if content_guidance_type == "source":
+        if source_token_budget is None:
+            source_token_budget = budget_guidance
+    else:
+        source_token_budget = None
+
+    if content_guidance_type != "no":
+        logger.info(f"Using content guidance from {content_guidance_type}")
+
+    # if content_guidance:
+    #     for sent in content_guidance.split("<n>"):
+    #         print(textwrap.fill(f"  - {sent}", 80))
+
+    logger.info(
+        f"Generating summary with {content_guidance_type} content guidance, budget guidance: {budget_guidance}"
+    )
+    summary = model.summarize(
+        source,
+        budget_guidance=budget_guidance,
+        content_guidance=content_guidance,
+        source_token_budget=source_token_budget,
+        verbose=True,
+    )
+    score = extrinsic_scores(
+        summary, target_summary=target, token_budget=params["token_budget"]
+    )
+    print("> Summary words:", sum([len(nltk.word_tokenize(sent)) for sent in summary]))
+    show_extrinsic_scores(score)
+
+
 def run(
     doc_id=617,
     data_dir="data",
@@ -90,6 +139,7 @@ def run(
     source_token_budget=None,
     token_budget=None,
     intrinsic_model_id=None,
+    content_guidance_type=None,
     views_per_doc=None,
     sample_factor=None,
     cache_dir=None,
@@ -97,7 +147,6 @@ def run(
 
     params = model_params(
         dataset_name,
-        source_token_budget=source_token_budget,
         budget_weight=budget_weight,
         token_budget=token_budget,
         views_per_doc=views_per_doc,
@@ -118,10 +167,7 @@ def run(
     source = eval_data["sources"][doc_id]
     n_words = sum([len(nltk.word_tokenize(sent)) for sent in target])
 
-    print("\n> DOC ID:", doc_id)
-    print()
-    print(f">> Target: ({n_words} words)")
-
+    logger.info(f"Target ID: {doc_id} ({n_words} words)")
     for sent in target:
         print(textwrap.fill(f"  - {sent}", 80))
 
@@ -130,29 +176,31 @@ def run(
 
     model = FactorSum(training_domain)
 
-    print("\n>> No content guidance, fixed budget")
-    summary = model.summarize(
-        source, budget_guidance=params["token_budget"], verbose=True
-    )
-    score = extrinsic_scores(
-        summary, target_summary=target, token_budget=params["token_budget"]
-    )
-    print(">> Words:", sum([len(nltk.word_tokenize(sent)) for sent in summary]))
-    show_extrinsic_scores(score)
+    content_guidance = None
+    if content_guidance_type and content_guidance_type != "source":
+        content_guidance = load_summaries(
+            dataset_name,
+            split,
+            content_guidance_type,
+            training_domain,
+            data_dir,
+            expected_sample_count=len(eval_data["sources"]),
+        )
 
-    print(f"\n>> Source content guidance, fixed budget")
-    budget_adjust_key = f"source_content_fixed_budget_adjust"
-    budget_adjust = params.get(budget_adjust_key, 0)
-    budget_guidance = params["token_budget"] + budget_adjust
-    summary = model.summarize(
+        if content_guidance is None:
+            return
+
+        content_guidance = content_guidance[doc_id]
+
+    _summarize(
+        model,
         source,
-        budget_guidance=budget_guidance,
-        source_token_budget=budget_guidance,
-        verbose=True,
+        params,
+        target=target,
+        content_guidance=content_guidance,
+        content_guidance_type=content_guidance_type,
+        source_token_budget=source_token_budget,
     )
-    score = extrinsic_scores(summary, target_summary=target, token_budget=token_budget)
-    print("> Words:", sum([len(nltk.word_tokenize(sent)) for sent in summary]))
-    show_extrinsic_scores(score)
 
 
 if __name__ == "__main__":
