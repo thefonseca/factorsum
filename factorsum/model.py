@@ -137,7 +137,7 @@ def run(
     training_domain=None,
     budget_weight=None,
     source_token_budget=None,
-    token_budget=None,
+    budget_guidance=None,
     intrinsic_model_id=None,
     content_guidance_type=None,
     views_per_doc=None,
@@ -148,7 +148,7 @@ def run(
     params = model_params(
         dataset_name,
         budget_weight=budget_weight,
-        token_budget=token_budget,
+        token_budget=budget_guidance,
         views_per_doc=views_per_doc,
         sample_factor=sample_factor,
         intrinsic_model_id=intrinsic_model_id,

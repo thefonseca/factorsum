@@ -1,6 +1,7 @@
 import os
 import pickle
 import logging
+from pathlib import Path
 
 import datasets
 from tqdm import tqdm
@@ -8,6 +9,7 @@ import nltk
 import pandas as pd
 import fire
 
+from factorsum.utils import download_resource
 from .oracle import get_oracles
 from .sampling import sample_dataset
 
@@ -120,7 +122,7 @@ def _create_views_dataset(
     require_oracle=True,
 ):
 
-    logger.info(f'Sampling views for {len(dataset["sources"])} documents...')
+    logger.info(f'Sampling document views for {len(dataset["sources"])} documents...')
     views_dataset, _ = sample_dataset(
         dataset,
         sample_factor=sample_factor,
@@ -255,7 +257,6 @@ def _load_dataset_split(
         logger.info(f"Loaded dataset from {filename}")
         return data
     except:
-        # logger.info(f'Processing {dataset_name} {split} set')
         data = _create_dataset(
             dataset_path,
             dataset_name,
@@ -500,7 +501,7 @@ def load_dataset(
 def prepare_dataset(
     dataset_path,
     dataset_name,
-    splits=None,
+    split=None,
     data_dir="data",
     sample_type=None,
     sample_factor=5,
@@ -509,7 +510,7 @@ def prepare_dataset(
     max_samples=None,
 ):
 
-    splits = _get_splits(splits)
+    splits = _get_splits(split)
 
     for split in splits:
         logger.info(f"Preparing {dataset_name} {split} set...")
@@ -548,6 +549,26 @@ def prepare_dataset(
         )
 
 
+def download(dataset_name=None, data_dir="data"):
+
+    urls = dict(
+        arxiv="1irQxpHh19JtpRYzzMj4kRQsUSoXMCvT7",
+        pubmed="1AqOJS8pz7667f-GliMvqVjM6gX7LlZo4",
+        govreport="1RWj_hasZLxPPjnVaMsXoYxePTzmilIok",
+    )
+    if dataset_name is None:
+        datasets = list(urls.keys())
+    else:
+        datasets = [dataset_name]
+
+    for dataset in datasets:
+        url = urls.get(dataset)
+        local_path = Path(data_dir) / f"{dataset}.zip"
+        if url:
+            logger.info(f"Downloading {dataset} files from {url}...")
+            download_resource(url, local_path)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     fire.Fire()
@@ -556,11 +577,11 @@ if __name__ == "__main__":
     Examples of CLI commands
     
     1. Generating CSV file for arXiv test set:
-    > python -m factorsum.data prepare_dataset scientific_papers arxiv --splits test
+    > python -m factorsum.data prepare_dataset scientific_papers arxiv --split test
 
     2. Generating CSV file for the arXiv document/reference views (validation set):
-    > python -m factorsum.data prepare_dataset scientific_papers arxiv --splits validation \
-        --sample_type random --sample_factor 5 --view_per_doc 20
+    > python -m factorsum.data prepare_dataset scientific_papers arxiv --split validation \
+        --sample_type random --sample_factor 5 --views_per_doc 20
 
     3. Generating CSV files for all arXiv splits:
     > python -m factorsum.data prepare_dataset scientific_papers arxiv
