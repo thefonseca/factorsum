@@ -216,9 +216,7 @@ def sample_dataset(
     for ii, source in enumerate(sources):
         oracles.append([source[jj] for jj in data["oracles"][ii] if jj is not None])
 
-    for paper_idx, (source, target, oracle) in enumerate(
-        zip(sources, targets, oracles)
-    ):
+    for doc_idx, (source, target, oracle) in enumerate(zip(sources, targets, oracles)):
 
         if len(source) == 0 or len(target) == 0:
             continue
@@ -226,8 +224,6 @@ def sample_dataset(
         if len(oracle) == 0 and require_oracle:
             continue
 
-        doc_ids.append(paper_idx)
-        original_targets.append(target)
         target_sent_counts.append(len(target))
         target_word_counts.append(sum([len(abs.split()) for abs in target]))
 
@@ -243,9 +239,12 @@ def sample_dataset(
             top_k=top_k,
         )
 
-        all_source_views.append(doc_views["source_views"])
-        all_target_views.append(doc_views["target_views"])
-        all_oracle_views.append(doc_views["oracle_views"])
+        n_views = len(doc_views["source_views"])
+        doc_ids.extend([doc_idx] * n_views)
+        original_targets.extend([target] * n_views)
+        all_source_views.extend(doc_views["source_views"])
+        all_target_views.extend(doc_views["target_views"])
+        all_oracle_views.extend(doc_views.get("oracle_views", [""]))
         source_view_sent_counts.extend([len(x) for x in doc_views["source_views"]])
         all_source_coverage.append(
             len(doc_views["source_sents_in_views"]) / len(source)
