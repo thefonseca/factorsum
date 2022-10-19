@@ -68,16 +68,20 @@ def download_resource(url, local_path, extract_zip=True):
                 zip_ref.extractall(extract_folder)
 
 
+def _download_intrinsic_model(training_domain, model_dir):
+    params = model_params(training_domain)
+    model_id = params["intrinsic_model_id"]
+    model_path = f"model-{model_id}:v0"
+    model_path = Path(model_dir) / model_path
+    download_resource(params["google_drive_id"], f"{model_path}.zip")
+
+
 def load_intrinsic_model(model_name_or_path, model_dir="artifacts"):
 
     if Path(model_name_or_path).exists():
         model_path = model_name_or_path
     else:
-        params = model_params(model_name_or_path)
-        model_id = params["intrinsic_model_id"]
-        model_path = f"model-{model_id}:v0"
-        model_path = Path(model_dir) / model_path
-        download_resource(params["google_drive_id"], f"{model_path}.zip")
+        _download_intrinsic_model(model_name_or_path, model_dir)
 
     logger.info(f"Loading intrinsic importance model from {model_path}...")
     tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
@@ -160,11 +164,22 @@ def show_summary(summary):
         print(summary)
 
 
+def download_models(training_domain=None, model_dir="artifacts"):
+
+    if training_domain is None:
+        training_domains = ["arxiv", "pubmed", "govreport"]
+    else:
+        training_domains = [training_domain]
+
+    for domain in training_domains:
+        _download_intrinsic_model(domain, model_dir)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     fire.Fire()
 
     """
-  To call download_wandb_model(project, model_name) from CLI use:
-  > python -m factorsum.utils download_wandb_model <project> <model_name>
-  """
+    To call download_wandb_model(project, model_name) from CLI use:
+    > python -m factorsum.utils download_wandb_model <project> <model_name>
+    """
