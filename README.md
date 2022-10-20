@@ -1,6 +1,6 @@
 # FactorSum
 
-Supporting code for the paper [Factorizing Content and Budget Decisions in Abstractive Summarization of Long Documents by Sampling Summary Views](https://arxiv.org/abs/2205.12486).
+Supporting code for the paper [Factorizing Content and Budget Decisions in Abstractive Summarization of Long Documents](https://arxiv.org/abs/2205.12486).
 
 ## Abstract
 
@@ -41,7 +41,9 @@ python -m factorsum.model --doc_id 230 --dataset_name arxiv --split test \
 It will output target abstract, the generated summary, and the evaluation scores.
 
 ### Colab Playground
-A Colab notebook is available for summary generation. [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CuMi6V4ZMPwLKXPYcmpuObMk55NHZivz?usp=sharing)
+A Colab notebook is available for summary generation. 
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CuMi6V4ZMPwLKXPYcmpuObMk55NHZivz?usp=sharing)
 
 ## Reproducing the evaluation results
 The evaluation procedure relies on the following data:
