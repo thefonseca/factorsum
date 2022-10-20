@@ -106,14 +106,14 @@ def _summarize(
         source_token_budget = None
 
     if content_guidance_type != "no":
-        logger.info(f"Using content guidance from {content_guidance_type}")
+        print(f"Using content guidance from {content_guidance_type}")
 
     # if content_guidance:
     #     for sent in content_guidance.split("<n>"):
     #         print(textwrap.fill(f"  - {sent}", 80))
 
-    logger.info(
-        f"Generating summary with {content_guidance_type} content guidance, budget guidance: {budget_guidance}"
+    print(
+        f"\n> Generating summary with {content_guidance_type} content guidance, budget guidance: {budget_guidance}..."
     )
     summary = model.summarize(
         source,
@@ -161,13 +161,13 @@ def run(
         data_dir=data_dir,
         cache_dir=cache_dir,
     )
-    print("Loaded eval dataset with keys:", list(eval_data.keys()))
+    logger.info("Loaded eval dataset with keys:", list(eval_data.keys()))
 
     target = eval_data["targets"][doc_id]
     source = eval_data["sources"][doc_id]
     n_words = sum([len(nltk.word_tokenize(sent)) for sent in target])
 
-    logger.info(f"Target ID: {doc_id} ({n_words} words)")
+    print(f"> Target ID: {doc_id} ({n_words} words)")
     for sent in target:
         print(textwrap.fill(f"  - {sent}", 80))
 
