@@ -74,6 +74,7 @@ def _download_intrinsic_model(training_domain, model_dir):
     model_path = f"model-{model_id}:v0"
     model_path = Path(model_dir) / model_path
     download_resource(params["google_drive_id"], f"{model_path}.zip")
+    return model_path
 
 
 def load_intrinsic_model(model_name_or_path, model_dir="artifacts"):
@@ -81,7 +82,7 @@ def load_intrinsic_model(model_name_or_path, model_dir="artifacts"):
     if Path(model_name_or_path).exists():
         model_path = model_name_or_path
     else:
-        _download_intrinsic_model(model_name_or_path, model_dir)
+        model_path = _download_intrinsic_model(model_name_or_path, model_dir)
 
     logger.info(f"Loading intrinsic importance model from {model_path}...")
     tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
