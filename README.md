@@ -40,6 +40,9 @@ python -m factorsum.model --doc_id 230 --dataset_name arxiv --split test \
 ```
 It will output target abstract, the generated summary, and the evaluation scores.
 
+### Colab Playground
+A Colab notebook is available for summary generation. [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CuMi6V4ZMPwLKXPYcmpuObMk55NHZivz?usp=sharing)
+
 ## Reproducing the evaluation results
 The evaluation procedure relies on the following data:
 - The [arXiv](https://huggingface.co/datasets/scientific_papers), [PubMed](https://huggingface.co/datasets/scientific_papers), and [GovReport](https://huggingface.co/datasets/ccdv/govreport-summarization) summarization datasets.
