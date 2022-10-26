@@ -231,3 +231,15 @@ python scripts/run_summarization.py \
 ```
 
 Note: to use mixed precision (`--fp16`) you need a compatible CUDA device.
+
+## Citation
+```bibtex
+@inproceedings{fonseca2022factorizing,
+ author = {Fonseca, Marcio and Ziser, Yftah and Cohen, Shay B.},
+ booktitle = {Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing},
+ location = {Abu Dhabi},
+ publisher = {Association for Computational Linguistics},
+ title = {Factorizing Content and Budget Decisions in Abstractive Summarization of Long Documents},
+ year = {2022}
+}
+```
