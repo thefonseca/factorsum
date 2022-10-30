@@ -13,9 +13,12 @@ This extrinsic guidance may come from different sources, including from an advis
 
 ## Getting started
 Clone this repository and install the dependencies:
-```shell
+```bash
 git clone https://github.com/thefonseca/factorsum.git
 cd factorsum
+# Optional: checkout the arXiv version 2205.12486v2 for reproducibility
+git checkout 2205.12486v2
+# Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -86,7 +89,7 @@ Currently, the checkpoints are:
 - GovReport: [model-2oklw1wt:v0](https://drive.google.com/file/d/1ONB41tDm2x_QFiW0qw4gil7RMB6Lzitz/view?usp=sharing)
 
 Finally, generate summary views using the `run_summarization.py` script (slightly adapted from the original [huggingface script](https://github.com/huggingface/transformers/blob/main/examples/pytorch/summarization/run_summarization.py)). The following command generates summary views for the arXiv test set using the model checkpoint in `artifacts/model-rs86h5g0:v0`:
-```shell
+```bash
 MODEL_PATH='artifacts/model-rs86h5g0:v0' \
 DATASET='arxiv' SPLIT='test' \
 python scripts/run_summarization.py \
@@ -183,7 +186,7 @@ python scripts/run_summarization.py \
 
 ## Training the intrinsic importance model
 First, make sure the data for all splits are available (processing of the training sets might take several minutes):
-```shell
+```bash
 python -m factorsum.data prepare_dataset scientific_papers arxiv
 python -m factorsum.data prepare_dataset scientific_papers pubmed
 python -m factorsum.data prepare_dataset ccdv/govreport-summarization govreport
@@ -191,7 +194,7 @@ python -m factorsum.data prepare_dataset ccdv/govreport-summarization govreport
 
 Then run the training script as follows:
 
-```shell
+```bash
 DATASET='arxiv' \
 python scripts/run_summarization.py \
     --model_name_or_path facebook/bart-base \
