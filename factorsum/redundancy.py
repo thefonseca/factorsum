@@ -1,5 +1,3 @@
-import re
-
 import nltk
 import textdistance
 import warnings
@@ -11,8 +9,6 @@ try:
     nltk.data.find("tokenizers/punkt")
 except:
     nltk.download("punkt", quiet=True)
-
-non_alpha_pattern = re.compile("[^\w_\s]+")
 
 
 def has_repeated_trigram(text, trigrams):
@@ -32,12 +28,10 @@ def has_repeated_trigram(text, trigrams):
 
 def has_similar_content(text, sentences, threshold=0.4, max_tokens=30):
 
-    text = non_alpha_pattern.sub("", text)
     text_words = text.split()
     len_text_words = len(text_words)
 
     for sent in sentences:
-        sent = non_alpha_pattern.sub("", sent)
 
         if text in sent or sent in text:
             return True
@@ -45,7 +39,7 @@ def has_similar_content(text, sentences, threshold=0.4, max_tokens=30):
         sent_words = sent.split()
         len_sent_words = len(sent_words)
 
-        if (
+        if len_text_words and (
             abs(len_sent_words - len_text_words)
             * 1.0
             / (len_sent_words + len_text_words)

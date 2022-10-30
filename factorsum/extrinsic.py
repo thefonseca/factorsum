@@ -1,3 +1,5 @@
+import re
+
 import nltk
 from summa import summarizer
 
@@ -11,6 +13,8 @@ try:
 except:
     nltk.download("punkt", quiet=True)
 
+non_alpha_pattern = re.compile("[^\w_\s]+")
+
 
 def _get_valid_view_idxs(views, min_words=5):
     n_ignored = sum([p is None for p in views])
@@ -22,7 +26,8 @@ def _get_valid_view_idxs(views, min_words=5):
     _views = []
 
     for idx, view in enumerate(views):
-        has_min_length = len(view.split()) > min_words if min_words else True
+        view_alpha = non_alpha_pattern.sub("", view)
+        has_min_length = len(view_alpha.split()) > min_words if min_words else True
 
         if not has_min_length:
             continue

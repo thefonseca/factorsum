@@ -130,6 +130,8 @@ def _summarize(
     print("> Summary words:", sum([len(nltk.word_tokenize(sent)) for sent in summary]))
     show_extrinsic_scores(score)
 
+    return summary
+
 
 def run(
     doc_id=617,
@@ -194,7 +196,7 @@ def run(
 
         content_guidance = content_guidance[doc_id]
 
-    _summarize(
+    _ = _summarize(
         model,
         source,
         params,
