@@ -65,6 +65,11 @@ class FactorSum:
         verbose=False,
         seed=17,
     ):
+        if type(source) == str:
+            source = nltk.sent_tokenize(source)
+        else:
+            source = [s for x in source for s in nltk.sent_tokenize(x)]
+        source = [x.replace("\n", "") for x in source if x != "\n"]
 
         if content_guidance is None and source_token_budget:
             content_guidance = get_source_guidance(source, source_token_budget)
