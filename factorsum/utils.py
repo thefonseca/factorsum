@@ -73,7 +73,7 @@ def _download_intrinsic_model(training_domain, model_dir):
     model_id = params["intrinsic_model_id"]
     model_path = f"model-{model_id}:v0"
     model_path = Path(model_dir) / model_path
-    download_resource(params["google_drive_id"], f"{model_path}.zip")
+    download_resource(params["model_url"], f"{model_path}.zip")
     return model_path
 
 

@@ -15,7 +15,12 @@ def _get_params():
     # is close to the validation set average reference summary words
     params["pubmed"] = {}
     params["pubmed"]["intrinsic_model_id"] = "cku41vkj"
-    params["pubmed"]["google_drive_id"] = "1ni-hVXM2jLMD71Ez2t7ND7v0eAlbeEgr"
+    params["pubmed"][
+        "model_url"
+    ] = "https://www.dropbox.com/s/8birb30qhjxyqnr/model-cku41vkj%20v0.zip?dl=1"
+    params["pubmed"][
+        "dataset_url"
+    ] = "https://www.dropbox.com/s/4vh8hfoio7r4vfl/factorsum-pubmed.zip?dl=1"
     params["pubmed"]["token_budget"] = 205
     params["pubmed"]["no_content_fixed_budget_adjust"] = 8
     params["pubmed"]["no_content_oracle_budget_adjust"] = 11
@@ -32,7 +37,8 @@ def _get_params():
 
     params["arxiv"] = {}
     params["arxiv"]["intrinsic_model_id"] = "rs86h5g0"
-    params["arxiv"]["google_drive_id"] = "1QxPBNm5Eqx89YsqQ8Jjpj_Oofo5T2whg"
+    params["arxiv"]["model_url"] = "https://www.dropbox.com/s/apgdmfqqwz22p7e/model-rs86h5g0%20v0.zip?dl=1"
+    params["arxiv"]["dataset_url"] = "https://www.dropbox.com/s/tzlcptrgwu41un8/factorsum-arxiv.zip?dl=1"
     params["arxiv"]["token_budget"] = 165
     params["arxiv"]["no_content_fixed_budget_adjust"] = 2
     params["arxiv"]["no_content_oracle_budget_adjust"] = 4
@@ -49,7 +55,8 @@ def _get_params():
 
     params["govreport"] = {}
     params["govreport"]["intrinsic_model_id"] = "2oklw1wt"
-    params["govreport"]["google_drive_id"] = "1ONB41tDm2x_QFiW0qw4gil7RMB6Lzitz"
+    params["govreport"]["model_url"] = "https://www.dropbox.com/s/tramsr8g27smuju/model-2oklw1wt%20v0.zip?dl=1"
+    params["govreport"]["dataset_url"] = "https://www.dropbox.com/s/vc5yyooa2o6euyj/factorsum-govreport.zip?dl=1"
     params["govreport"]["token_budget"] = 648
     params["govreport"]["no_content_fixed_budget_adjust"] = 8
     params["govreport"]["no_content_oracle_budget_adjust"] = 8

@@ -12,6 +12,7 @@ import fire
 from factorsum.utils import download_resource
 from .oracle import get_oracles
 from .sampling import sample_dataset
+from .config import model_params
 
 try:
     nltk.data.find("tokenizers/punkt")
@@ -551,18 +552,14 @@ def prepare_dataset(
 
 def download(dataset_name=None, data_dir="data"):
 
-    urls = dict(
-        arxiv="1irQxpHh19JtpRYzzMj4kRQsUSoXMCvT7",
-        pubmed="1AqOJS8pz7667f-GliMvqVjM6gX7LlZo4",
-        govreport="1RWj_hasZLxPPjnVaMsXoYxePTzmilIok",
-    )
     if dataset_name is None:
-        datasets = list(urls.keys())
+        datasets = list(['arxiv', 'punmed', 'govreport'])
     else:
         datasets = [dataset_name]
 
     for dataset in datasets:
-        url = urls.get(dataset)
+        params = model_params(dataset)
+        url = params.get('dataset_url') 
         local_path = Path(data_dir) / f"{dataset}.zip"
         if url:
             logger.info(f"Downloading {dataset} files from {url}...")
