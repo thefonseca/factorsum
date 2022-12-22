@@ -135,7 +135,8 @@ def _summarize(
     )
     print("> Summary words:", sum([len(nltk.word_tokenize(sent)) for sent in summary]))
     print("> Guidance scores:")
-    print(guidance_scores)
+    for key, score in guidance_scores.items():
+        print(f"{key}: {score:.3f}")
     _ = summarization_metrics(summary, target_summary=target, verbose=True)
 
     return summary
