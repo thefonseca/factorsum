@@ -25,15 +25,6 @@ def log_rouge_scores(scores):
             print("%s-F: %f,%f,%f\n" % (k, v.fmeasure, v.fmeasure, v.fmeasure))
 
 
-def show_extrinsic_scores(score):
-    if "rouge" in score:
-        print("\n> ROUGE scores:")
-        log_rouge_scores(score["rouge"])
-
-    if "budget_error" in score:
-        print("> Budget error:", score["budget_error"])
-
-
 def rouge_score(summary, target_summary, rouge_ngrams=None):
 
     score = {}
@@ -57,28 +48,23 @@ def rouge_score(summary, target_summary, rouge_ngrams=None):
     return score
 
 
-def budget_error(summary, token_budget):
-    summary_tokens = 0
-
-    for sent in summary:
-        summary_tokens += len(nltk.word_tokenize(sent))
-
-    error = ((token_budget - summary_tokens) / token_budget) ** 2
-    return error
+def show_metrics(metrics):
+    if "rouge" in metrics:
+        print("\n> ROUGE scores:")
+        log_rouge_scores(metrics["rouge"])
 
 
-def extrinsic_scores(
-    summary, target_summary=None, token_budget=None, rouge_ngrams=None
+def summarization_metrics(
+    summary, target_summary=None, rouge_ngrams=None, verbose=False
 ):
-
-    score = {}
+    metrics = {}
 
     if target_summary is not None:
         rouge = rouge_score(summary, target_summary, rouge_ngrams=rouge_ngrams)
         for key, value in rouge.items():
-            score[key] = value
+            metrics[key] = value
 
-    if token_budget is not None:
-        score["budget_error"] = budget_error(summary, token_budget)
+    if verbose:
+        show_metrics(metrics)
 
-    return score
+    return metrics

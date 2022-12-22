@@ -1,16 +1,17 @@
 import pathlib
 import json
 
+import nltk
 import numpy as np
 import pandas as pd
 from rouge_score import scoring
-import nltk
 from p_tqdm import p_map
+from scipy.stats import bootstrap
 
 from .utils import log_summary, log_rouge_scores
 from factorsum.extrinsic import find_best_summary
 from factorsum.utils import apply_word_limit
-from factorsum.score import extrinsic_scores
+from factorsum.metrics import summarization_metrics
 
 
 def _print_eval_metrics(results):
@@ -60,6 +61,40 @@ def _aggregate_results(results):
 
     results["scores"] = scores
     return results
+
+
+def _print_guidance_scores(scores):
+    for key in scores.keys():
+        _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
+        _scores = ", ".join(_scores)
+        print(f"{key}: {_scores}")
+
+
+def _aggregate_guidance_scores(scores):
+    agg_scores = {}
+
+    for score in scores:
+        for key in score.keys():
+            key_scores = agg_scores.get(key, [])
+            key_scores.append(score[key])
+            agg_scores[key] = key_scores
+
+    confidence_intervals = {}
+    for key in agg_scores.keys():
+        ci = bootstrap(
+            (agg_scores[key],),
+            np.mean,
+            confidence_level=0.95,
+            random_state=17,
+            method="BCa",
+        )
+        confidence_intervals[key] = {
+            "low": ci.confidence_interval.low,
+            "high": ci.confidence_interval.high,
+            "mean": np.mean(agg_scores[key]),
+        }
+
+    return confidence_intervals
 
 
 def eval_job(
@@ -126,13 +161,13 @@ def eval_job(
     tokens_per_abstract_sent.append(np.mean([len(s.split()) for s in target_sents]))
     tokens_per_abstract.append(len(target_words))
 
-    score = extrinsic_scores(pred_sents, target_summary=target)
-    rouge_score = score["rouge"]
+    metrics = summarization_metrics(pred_sents, target_summary=target)
+    rouge_score = metrics["rouge"]
 
     if rouge_score:
         rouge_scores.append(rouge_score)
 
-    log_summary(doc_id, pred, target, score, bad_score, good_score)
+    log_summary(doc_id, pred, target, metrics, bad_score, good_score)
 
     results = dict(
         sents_per_summary=sents_per_summary,
@@ -150,6 +185,7 @@ def eval_job(
 def evaluate(
     preds,
     targets,
+    guidance_scores=None,
     max_target_tokens=None,
     save_preds_to=None,
     n_samples=1000,
@@ -179,6 +215,13 @@ def evaluate(
 
     results = _aggregate_results(results)
     _print_eval_metrics(results)
+
+    if guidance_scores:
+        guidance_scores = _aggregate_guidance_scores(guidance_scores)
+        print("> Guidances scores:")
+        _print_guidance_scores(guidance_scores)
+        print()
+        results["scores"]["guidance_scores"] = guidance_scores
 
     if save_preds_to:
         filepath = pathlib.Path(save_preds_to)
@@ -218,10 +261,10 @@ def eval_sampled_job(
     if _token_budget < min_budget:
         _token_budget = min_budget
 
-    summary, _ = find_best_summary(
+    summary, _, guidance_scores = find_best_summary(
         pred_views,
-        content_guidance=text_guidance,
-        budget_guidance=_token_budget,
+        _token_budget,
+        target_content=text_guidance,
         strict_budget=strict_budget,
         content_weight=content_weight,
         budget_weight=budget_weight,
@@ -230,7 +273,7 @@ def eval_sampled_job(
 
     summary = "\n".join(summary)
 
-    return summary
+    return summary, guidance_scores
 
 
 def evaluate_sampled(
@@ -277,7 +320,7 @@ def evaluate_sampled(
         else:
             _token_budget.append(token_budget)
 
-    summaries = p_map(
+    results = p_map(
         lambda sample_summary_views, target, text_guidance, token_budget: eval_sampled_job(
             sample_summary_views,
             target,
@@ -297,9 +340,13 @@ def evaluate_sampled(
         _token_budget,
     )
 
+    summaries = [r[0] for r in results]
+    guidance_scores = [r[1] for r in results]
+
     return evaluate(
         summaries,
         targets,
+        guidance_scores=guidance_scores,
         max_target_tokens=max_target_tokens,
         good_score=good_score,
         bad_score=bad_score,

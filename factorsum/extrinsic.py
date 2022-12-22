@@ -3,7 +3,7 @@ import re
 import nltk
 from summa import summarizer
 
-from .score import extrinsic_scores
+from .guidance import BudgetGuidance, ROUGEContentGuidance
 from .utils import apply_word_limit, show_summary, sent_tokenize_views
 from .oracle import get_oracles
 from .redundancy import has_similar_content, has_repeated_trigram
@@ -39,27 +39,15 @@ def _get_valid_view_idxs(views, min_words=5):
     return view_idxs, _views
 
 
-def _candidate_score(
-    candidate_summary,
-    content_guidance=None,
-    budget_guidance=None,
-    content_weight=1.0,
-    budget_weight=1.0,
-):
-
+def _candidate_score(candidate_summary, guidance):
     candidate_score = 0
 
-    scores = extrinsic_scores(
-        candidate_summary,
-        target_summary=content_guidance,
-        token_budget=budget_guidance,
-        rouge_ngrams=["rouge1"],
-    )
+    if guidance:
+        if type(guidance) != list:
+            guidance = [guidance]
 
-    if "rouge" in scores:
-        candidate_score += content_weight * scores["rouge"]["rouge1"].fmeasure
-    if "budget_error" in scores:
-        candidate_score += -budget_weight * scores["budget_error"]
+        for guidance_item in guidance:
+            candidate_score += guidance_item.score(candidate_summary)
 
     return candidate_score
 
@@ -69,10 +57,7 @@ def _add_best_view(
     summary_idxs,
     views,
     view_idxs,
-    content_guidance=None,
-    budget_guidance=None,
-    content_weight=1.0,
-    budget_weight=1.0,
+    guidance=None,
     trigrams=None,
 ):
 
@@ -97,13 +82,7 @@ def _add_best_view(
         candidate_summary = summary + [views[ii]]
         idxs = summary_idxs + [ii]
 
-        score = _candidate_score(
-            candidate_summary,
-            content_guidance=content_guidance,
-            budget_guidance=budget_guidance,
-            content_weight=content_weight,
-            budget_weight=budget_weight,
-        )
+        score = _candidate_score(candidate_summary, guidance)
 
         if best_score is None or best_score < score:
             best_summary = candidate_summary
@@ -115,15 +94,15 @@ def _add_best_view(
 
 
 def _get_oracle_idxs(source_sents, target_sents):
-    oracle_idxs = get_oracles([source_sents], [target_sents])[0]
+    oracle_idxs = get_oracles([source_sents], [target_sents], progress_bar=False)[0]
     oracle_idxs = [x if x is not None else len(oracle_idxs) for x in oracle_idxs]
     return oracle_idxs
 
 
-def _reorder_sentences(summary, summary_idxs, content_guidance):
-    _content_guidance = content_guidance.replace("<n>", "")
-    _content_guidance = nltk.sent_tokenize(_content_guidance)
-    oracle_idxs = _get_oracle_idxs(_content_guidance, summary)
+def _reorder_sentences(summary, summary_idxs, target_content):
+    _target_content = target_content.replace("<n>", "")
+    _target_content = nltk.sent_tokenize(_target_content)
+    oracle_idxs = _get_oracle_idxs(_target_content, summary)
     summary = [x for _, x in sorted(zip(oracle_idxs, summary))]
     summary_idxs = [x for _, x in sorted(zip(oracle_idxs, summary_idxs))]
     return summary, summary_idxs
@@ -134,10 +113,7 @@ def _find_best_summary(
     summary_idxs,
     views,
     view_idxs,
-    content_guidance=None,
-    content_weight=1.0,
-    budget_weight=1.0,
-    budget_guidance=None,
+    guidance=None,
     patience=-1,
 ):
 
@@ -153,10 +129,7 @@ def _find_best_summary(
             summary_idxs,
             views,
             view_idxs,
-            content_guidance=content_guidance,
-            budget_guidance=budget_guidance,
-            content_weight=content_weight,
-            budget_weight=budget_weight,
+            guidance=guidance,
             trigrams=None,
         )
         _summary, _idxs, score, _ = result
@@ -181,10 +154,7 @@ def _find_best_summary(
 
 def _greedy_summary(
     views,
-    content_guidance=None,
-    budget_guidance=None,
-    content_weight=1.0,
-    budget_weight=1.0,
+    guidance=None,
     patience=-1,
     min_words=5,
 ):
@@ -204,10 +174,7 @@ def _greedy_summary(
         summary_idxs,
         sents,
         sent_idxs,
-        content_guidance=content_guidance,
-        budget_guidance=budget_guidance,
-        content_weight=content_weight,
-        budget_weight=budget_weight,
+        guidance=guidance,
         patience=patience,
     )
     summary, idxs = result
@@ -232,13 +199,36 @@ def _textrank_summary(views, token_budget, min_words=5):
     return summary
 
 
+def _get_guidance(
+    target_budget,
+    target_content,
+    budget_weight=1.0,
+    content_weight=1.0,
+    custom_guidance=None,
+):
+
+    guidance = [BudgetGuidance(target_budget, weight=budget_weight)]
+
+    if target_content:
+        guidance.append(ROUGEContentGuidance(target_content, weight=content_weight))
+
+    if custom_guidance:
+        if type(custom_guidance) == list:
+            guidance.extend(custom_guidance)
+        else:
+            guidance.append(custom_guidance)
+
+    return guidance
+
+
 def find_best_summary(
     summary_views,
-    budget_guidance=200,
+    target_budget,
     strict_budget=False,
-    content_guidance=None,
+    target_content=None,
     content_weight=1.0,
     budget_weight=1.0,
+    custom_guidance=None,
     verbose=False,
     method="factorsum",
 ):
@@ -246,33 +236,42 @@ def find_best_summary(
     summary = []
     summary_idxs = []
 
-    if content_guidance is not None:
-        if type(content_guidance) == list:
-            content_guidance = "\n".join(content_guidance)
+    if target_content is not None:
+        if type(target_content) == list:
+            target_content = "\n".join(target_content)
+
+    guidance = _get_guidance(
+        target_budget,
+        target_content,
+        content_weight=content_weight,
+        budget_weight=budget_weight,
+        custom_guidance=custom_guidance,
+    )
 
     if method == "factorsum":
         summary, summary_idxs = _greedy_summary(
             summary_views,
-            budget_guidance=budget_guidance,
-            content_guidance=content_guidance,
-            content_weight=content_weight,
-            budget_weight=budget_weight,
+            guidance=guidance,
         )
     elif method == "textrank":
-        summary = _textrank_summary(summary_views, budget_guidance)
+        summary = _textrank_summary(summary_views, target_budget)
     else:
         raise ValueError(f"Unsupported summarization method: {method}")
 
     if strict_budget:
-        summary = apply_word_limit(summary, budget_guidance, return_list=True)
+        summary = apply_word_limit(summary, target_budget, return_list=True)
 
-    if content_guidance and summary_idxs:
+    if target_content and summary_idxs:
         summary, summary_idxs = _reorder_sentences(
-            summary, summary_idxs, content_guidance
+            summary, summary_idxs, target_content
         )
+
+    guidance_scores = {}
+    if guidance:
+        guidance_scores = {g.__class__.__name__: g.score(summary) for g in guidance}
 
     if verbose:
         print()
         show_summary(summary)
 
-    return summary, summary_idxs
+    return summary, summary_idxs, guidance_scores

@@ -9,7 +9,7 @@ from .extrinsic import find_best_summary
 from .config import model_params
 from .data import load_dataset, load_summaries
 from .sampling import get_document_views
-from .score import extrinsic_scores, show_extrinsic_scores
+from .metrics import summarization_metrics
 from .utils import load_intrinsic_model
 
 try:
@@ -59,9 +59,12 @@ class FactorSum:
     def summarize(
         self,
         source,
-        budget_guidance,
-        source_token_budget=0,
-        content_guidance=None,
+        target_budget,
+        source_target_budget=0,
+        target_content=None,
+        custom_guidance=None,
+        sample_factor=5,
+        views_per_doc=20,
         verbose=False,
         seed=17,
     ):
@@ -71,20 +74,22 @@ class FactorSum:
             source = [s for x in source for s in nltk.sent_tokenize(x)]
         source = [x.replace("\n", "") for x in source if x != "\n"]
 
-        if content_guidance is None and source_token_budget:
-            content_guidance = get_source_guidance(source, source_token_budget)
+        if target_content is None and source_target_budget:
+            target_content = get_source_guidance(source, source_target_budget)
 
         doc_views = get_document_views(
-            source, sample_factor=5, views_per_doc=20, seed=seed
+            source, sample_factor=sample_factor, views_per_doc=views_per_doc, seed=seed
         )
         summary_views = self.get_summary_views(doc_views["source_views"])
-        summary, _ = find_best_summary(
+        summary, _, guidance_scores = find_best_summary(
             summary_views,
-            content_guidance=content_guidance,
-            budget_guidance=budget_guidance,
+            target_budget,
+            target_content=target_content,
+            custom_guidance=custom_guidance,
             verbose=verbose,
         )
-        return summary
+
+        return summary, guidance_scores
 
 
 def _summarize(
@@ -93,8 +98,11 @@ def _summarize(
     params,
     target=None,
     content_guidance_type=None,
-    content_guidance=None,
-    source_token_budget=None,
+    target_content=None,
+    source_target_budget=None,
+    custom_guidance=None,
+    sample_factor=5,
+    views_per_doc=20,
 ):
 
     if content_guidance_type is None:
@@ -102,38 +110,33 @@ def _summarize(
 
     budget_adjust_key = f"{content_guidance_type}_content_fixed_budget_adjust"
     budget_adjust = params.get(budget_adjust_key, 0)
-    budget_guidance = params["token_budget"] + budget_adjust
+    target_budget = params["token_budget"] + budget_adjust
 
     if content_guidance_type == "source":
-        if source_token_budget is None:
-            source_token_budget = budget_guidance
+        if source_target_budget is None:
+            source_target_budget = target_budget
     else:
-        source_token_budget = None
-
-    # if content_guidance_type != "no":
-    #     print(f"Using content guidance from {content_guidance_type}")
-
-    # if content_guidance:
-    #     for sent in content_guidance.split("<n>"):
-    #         print(textwrap.fill(f"  - {sent}", 80))
+        source_target_budget = None
 
     setup_desc = f"> Generating summary with {content_guidance_type} "
-    setup_desc += f"content guidance and budget guidance of {budget_guidance} ..."
+    setup_desc += f"content guidance and budget guidance of {target_budget} ..."
     print()
     print(textwrap.fill(setup_desc, 80))
 
-    summary = model.summarize(
+    summary, guidance_scores = model.summarize(
         source,
-        budget_guidance=budget_guidance,
-        content_guidance=content_guidance,
-        source_token_budget=source_token_budget,
+        target_budget=target_budget,
+        target_content=target_content,
+        source_target_budget=source_target_budget,
+        custom_guidance=custom_guidance,
+        sample_factor=sample_factor,
+        views_per_doc=views_per_doc,
         verbose=True,
     )
-    score = extrinsic_scores(
-        summary, target_summary=target, token_budget=params["token_budget"]
-    )
     print("> Summary words:", sum([len(nltk.word_tokenize(sent)) for sent in summary]))
-    show_extrinsic_scores(score)
+    print("> Guidance scores:")
+    print(guidance_scores)
+    _ = summarization_metrics(summary, target_summary=target, verbose=True)
 
     return summary
 
@@ -149,8 +152,8 @@ def run(
     budget_guidance=None,
     intrinsic_model_id=None,
     content_guidance_type=None,
-    views_per_doc=None,
-    sample_factor=None,
+    views_per_doc=20,
+    sample_factor=5,
     cache_dir=None,
 ):
 
@@ -170,7 +173,7 @@ def run(
         data_dir=data_dir,
         cache_dir=cache_dir,
     )
-    logger.info("Loaded eval dataset with keys:", list(eval_data.keys()))
+    logger.info(f"Loaded eval dataset with keys: {list(eval_data.keys())}")
 
     target = eval_data["targets"][doc_id]
     source = eval_data["sources"][doc_id]
@@ -185,9 +188,9 @@ def run(
 
     model = FactorSum(training_domain)
 
-    content_guidance = None
+    target_content = None
     if content_guidance_type and content_guidance_type != "source":
-        content_guidance = load_summaries(
+        target_content = load_summaries(
             dataset_name,
             split,
             content_guidance_type,
@@ -196,19 +199,21 @@ def run(
             expected_sample_count=len(eval_data["sources"]),
         )
 
-        if content_guidance is None:
+        if target_content is None:
             return
 
-        content_guidance = content_guidance[doc_id]
+        target_content = target_content[doc_id]
 
     _ = _summarize(
         model,
         source,
         params,
         target=target,
-        content_guidance=content_guidance,
+        target_content=target_content,
         content_guidance_type=content_guidance_type,
-        source_token_budget=source_token_budget,
+        source_target_budget=source_token_budget,
+        sample_factor=sample_factor,
+        views_per_doc=views_per_doc,
     )
 
 
