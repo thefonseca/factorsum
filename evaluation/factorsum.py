@@ -27,6 +27,7 @@ def _join_texts(content, eval_data):
             {len(text_guidance)} != {len(summaries)}"
             )
 
+        # merge summary content
         for idx, summary in enumerate(summaries):
             if type(summary) == list:
                 text_guidance[idx].extend(summary)
@@ -141,7 +142,7 @@ def evaluate(
     budget_weight=None,
     source_token_budget=None,
     token_budget=None,
-    summary_type=None,
+    summary_type="summary_views",
     intrinsic_model_id=None,
     samples_per_doc=None,
     sample_factor=None,
@@ -205,7 +206,7 @@ def evaluate(
         assert content_type in allowed_content_types
         assert budget_type in allowed_budget_types
 
-        if eval_data.get(f"{content_type}_summaries") is None:
+        if content_type != "no" and eval_data.get(f"{content_type}_summaries") is None:
             continue
 
         save_to = get_output_path(
