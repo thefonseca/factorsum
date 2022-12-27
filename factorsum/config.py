@@ -14,9 +14,9 @@ def _get_params():
     # we adjust budgets so that the average predicted summary words
     # is close to the validation set average reference summary words
     params["pubmed"] = {}
-    params["pubmed"]["intrinsic_model_id"] = "cku41vkj"
+    params["pubmed"]["intrinsic_importance_model_id"] = "cku41vkj"
     params["pubmed"][
-        "model_url"
+        "intrinsic_importance_model_url"
     ] = "https://www.dropbox.com/s/8birb30qhjxyqnr/model-cku41vkj%20v0.zip?dl=1"
     params["pubmed"][
         "dataset_url"
@@ -36,9 +36,13 @@ def _get_params():
     params["pubmed"]["dataset_path"] = "scientific_papers"
 
     params["arxiv"] = {}
-    params["arxiv"]["intrinsic_model_id"] = "rs86h5g0"
-    params["arxiv"]["model_url"] = "https://www.dropbox.com/s/apgdmfqqwz22p7e/model-rs86h5g0%20v0.zip?dl=1"
-    params["arxiv"]["dataset_url"] = "https://www.dropbox.com/s/tzlcptrgwu41un8/factorsum-arxiv.zip?dl=1"
+    params["arxiv"]["intrinsic_importance_model_id"] = "rs86h5g0"
+    params["arxiv"][
+        "intrinsic_importance_model_url"
+    ] = "https://www.dropbox.com/s/apgdmfqqwz22p7e/model-rs86h5g0%20v0.zip?dl=1"
+    params["arxiv"][
+        "dataset_url"
+    ] = "https://www.dropbox.com/s/tzlcptrgwu41un8/factorsum-arxiv.zip?dl=1"
     params["arxiv"]["token_budget"] = 165
     params["arxiv"]["no_content_fixed_budget_adjust"] = 2
     params["arxiv"]["no_content_oracle_budget_adjust"] = 4
@@ -54,9 +58,13 @@ def _get_params():
     params["arxiv"]["dataset_path"] = "scientific_papers"
 
     params["govreport"] = {}
-    params["govreport"]["intrinsic_model_id"] = "2oklw1wt"
-    params["govreport"]["model_url"] = "https://www.dropbox.com/s/tramsr8g27smuju/model-2oklw1wt%20v0.zip?dl=1"
-    params["govreport"]["dataset_url"] = "https://www.dropbox.com/s/vc5yyooa2o6euyj/factorsum-govreport.zip?dl=1"
+    params["govreport"]["intrinsic_importance_model_id"] = "2oklw1wt"
+    params["govreport"][
+        "intrinsic_importance_model_url"
+    ] = "https://www.dropbox.com/s/tramsr8g27smuju/model-2oklw1wt%20v0.zip?dl=1"
+    params["govreport"][
+        "dataset_url"
+    ] = "https://www.dropbox.com/s/vc5yyooa2o6euyj/factorsum-govreport.zip?dl=1"
     params["govreport"]["token_budget"] = 648
     params["govreport"]["no_content_fixed_budget_adjust"] = 8
     params["govreport"]["no_content_oracle_budget_adjust"] = 8
@@ -72,17 +80,21 @@ def _get_params():
     return params
 
 
-def model_params(domain_name, **kwargs):
-    params = _get_params()
+def model_params(domain_name, default_params=None, **kwargs):
+    if default_params is None:
+        params = _get_params()
+    else:
+        params = default_params
+
     params["dataset_path"] = params[domain_name].get("dataset_path", domain_name)
 
     domains = ["pubmed", "arxiv", "govreport"]
-    default_params = [key for key in params.keys() if key not in domains]
+    default_param_keys = [key for key in params.keys() if key not in domains]
 
     _model_params = params[domain_name]
     _model_params["domain_name"] = domain_name
 
-    for param_key in default_params:
+    for param_key in default_param_keys:
         param_value = params[domain_name].get(param_key, params[param_key])
         _model_params[param_key] = param_value
 

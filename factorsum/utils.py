@@ -11,7 +11,12 @@ import wandb
 import fire
 import nltk
 import gdown
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+from transformers import (
+    AutoTokenizer,
+    AutoModelForSeq2SeqLM,
+    AutoModelForSequenceClassification,
+    pipeline,
+)
 import torch
 
 from .config import model_params
@@ -68,34 +73,51 @@ def download_resource(url, local_path, extract_zip=True):
                 zip_ref.extractall(extract_folder)
 
 
-def _download_intrinsic_model(training_domain, model_dir):
-    params = model_params(training_domain)
-    model_id = params["intrinsic_model_id"]
+def _download_model(
+    training_domain, model_dir, model_type="intrinsic_importance", params=None
+):
+    if params is None:
+        params = model_params(training_domain)
+    model_id = params[f"{model_type}_model_id"]
     model_path = f"model-{model_id}:v0"
     model_path = Path(model_dir) / model_path
-    download_resource(params["model_url"], f"{model_path}.zip")
+    download_resource(params[f"{model_type}_model_url"], f"{model_path}.zip")
     return model_path
 
 
-def load_intrinsic_model(model_name_or_path, model_dir="artifacts"):
-
-    if Path(model_name_or_path).exists():
-        model_path = model_name_or_path
+def load_model(
+    model_domain_or_path,
+    model_type="intrinsic_importance",
+    model_dir="artifacts",
+    params=None,
+):
+    if Path(model_domain_or_path).exists():
+        model_path = model_domain_or_path
     else:
-        model_path = _download_intrinsic_model(model_name_or_path, model_dir)
+        model_path = _download_model(
+            model_domain_or_path, model_dir, model_type=model_type, params=params
+        )
 
-    logger.info(f"Loading intrinsic importance model from {model_path}...")
+    logger.info(f"Loading {model_type} model from {model_path}...")
     tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
+
+    if model_type == "concept_classification":
+        pipeline_type = "text-classification"
+        model = AutoModelForSequenceClassification.from_pretrained(model_path)
+    else:
+        pipeline_type = "summarization"
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
+
     try:
         device = torch.cuda.current_device()
     except:
         device = None
+
     summarizer = pipeline(
-        "summarization", model=model, tokenizer=tokenizer, device=device
+        pipeline_type, model=model, tokenizer=tokenizer, device=device
     )
 
-    return summarizer
+    return summarizer, model_path
 
 
 def apply_word_limit(text, max_words, return_list=False):
@@ -173,7 +195,7 @@ def download_models(training_domain=None, model_dir="artifacts"):
         training_domains = [training_domain]
 
     for domain in training_domains:
-        _download_intrinsic_model(domain, model_dir)
+        _download_model(domain, model_dir)
 
 
 if __name__ == "__main__":

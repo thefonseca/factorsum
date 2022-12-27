@@ -494,8 +494,8 @@ def load_dataset(
         else:
             dataset[_split] = split_data
 
-    if split:
-        dataset = dataset[split]
+    if split and len(splits) == 1:
+        dataset = dataset[splits[0]]
     return dataset
 
 
@@ -553,13 +553,13 @@ def prepare_dataset(
 def download(dataset_name=None, data_dir="data"):
 
     if dataset_name is None:
-        datasets = list(['arxiv', 'punmed', 'govreport'])
+        datasets = list(["arxiv", "punmed", "govreport"])
     else:
         datasets = [dataset_name]
 
     for dataset in datasets:
         params = model_params(dataset)
-        url = params.get('dataset_url') 
+        url = params.get("dataset_url")
         local_path = Path(data_dir) / f"{dataset}.zip"
         if url:
             logger.info(f"Downloading {dataset} files from {url}...")

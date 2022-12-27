@@ -10,7 +10,7 @@ from .config import model_params
 from .data import load_dataset, load_summaries
 from .sampling import get_document_views
 from .metrics import summarization_metrics
-from .utils import load_intrinsic_model
+from .utils import load_model
 
 try:
     nltk.data.find("tokenizers/punkt")
@@ -36,6 +36,15 @@ def get_source_guidance(source, token_budget, verbose=False):
     return source_guidance
 
 
+def sent_tokenize(text):
+    if type(text) == str:
+        sents = nltk.sent_tokenize(text)
+    else:
+        sents = [s for x in text for s in nltk.sent_tokenize(x)]
+    sents = [x.replace("\n", "") for x in sents if x != "\n"]
+    return sents
+
+
 class FactorSum:
     def __init__(self, model_name_or_path):
         super().__init__()
@@ -44,7 +53,7 @@ class FactorSum:
 
     def get_summary_views(self, source_views, batch_size=20):
         if self.model is None:
-            self.model = load_intrinsic_model(self.model_name_or_path)
+            self.model, _ = load_model(self.model_name_or_path, "intrinsic_importance")
 
         if type(source_views) == list:
             source_views = ["\n".join(view) for view in source_views]
@@ -68,19 +77,17 @@ class FactorSum:
         verbose=False,
         seed=17,
     ):
-        if type(source) == str:
-            source = nltk.sent_tokenize(source)
-        else:
-            source = [s for x in source for s in nltk.sent_tokenize(x)]
-        source = [x.replace("\n", "") for x in source if x != "\n"]
-
-        if target_content is None and source_target_budget:
-            target_content = get_source_guidance(source, source_target_budget)
-
+        source_sents = sent_tokenize(source)
         doc_views = get_document_views(
-            source, sample_factor=sample_factor, views_per_doc=views_per_doc, seed=seed
+            source_sents,
+            sample_factor=sample_factor,
+            views_per_doc=views_per_doc,
+            seed=seed,
         )
         summary_views = self.get_summary_views(doc_views["source_views"])
+        if target_content is None and source_target_budget:
+            target_content = get_source_guidance(source_sents, source_target_budget)
+
         summary, _, guidance_scores = find_best_summary(
             summary_views,
             target_budget,
@@ -92,7 +99,35 @@ class FactorSum:
         return summary, guidance_scores
 
 
-def _summarize(
+def load_target_content(
+    doc_id,
+    sources,
+    content_guidance_type,
+    dataset_name,
+    split,
+    training_domain,
+    data_dir,
+):
+    target_content = None
+    if content_guidance_type and content_guidance_type != "source":
+        target_content = load_summaries(
+            dataset_name,
+            split,
+            content_guidance_type,
+            training_domain,
+            data_dir,
+            expected_sample_count=len(sources),
+        )
+
+        if target_content is None:
+            return
+
+        target_content = target_content[doc_id]
+
+    return target_content
+
+
+def summarize(
     model,
     source,
     params,
@@ -104,6 +139,13 @@ def _summarize(
     sample_factor=5,
     views_per_doc=20,
 ):
+
+    if target:
+        n_words = sum([len(nltk.word_tokenize(sent)) for sent in target])
+
+        print(f"> Reference summary: ({n_words} words)\n")
+        for sent in target:
+            print(textwrap.fill(f"  - {sent}", 80))
 
     if content_guidance_type is None:
         content_guidance_type = "no"
@@ -176,40 +218,26 @@ def run(
     )
     logger.info(f"Loaded eval dataset with keys: {list(eval_data.keys())}")
 
-    target = eval_data["targets"][doc_id]
-    source = eval_data["sources"][doc_id]
-    n_words = sum([len(nltk.word_tokenize(sent)) for sent in target])
-
-    print(f"> Reference summary ID: {doc_id} ({n_words} words)\n")
-    for sent in target:
-        print(textwrap.fill(f"  - {sent}", 80))
-
     if training_domain is None:
         training_domain = dataset_name
 
+    target_content = load_target_content(
+        doc_id,
+        eval_data["sources"],
+        content_guidance_type,
+        dataset_name,
+        split,
+        training_domain,
+        data_dir,
+    )
+
     model = FactorSum(training_domain)
-
-    target_content = None
-    if content_guidance_type and content_guidance_type != "source":
-        target_content = load_summaries(
-            dataset_name,
-            split,
-            content_guidance_type,
-            training_domain,
-            data_dir,
-            expected_sample_count=len(eval_data["sources"]),
-        )
-
-        if target_content is None:
-            return
-
-        target_content = target_content[doc_id]
-
-    _ = _summarize(
+    source = eval_data["sources"][doc_id]
+    _ = summarize(
         model,
         source,
         params,
-        target=target,
+        target=eval_data["targets"][doc_id],
         target_content=target_content,
         content_guidance_type=content_guidance_type,
         source_target_budget=source_token_budget,
