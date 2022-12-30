@@ -242,8 +242,10 @@ def eval_sampled_job(
     target,
     text_guidance=None,
     token_budget=None,
+    custom_guidance=None,
     strict_budget=False,
     min_budget=10,
+    min_words_per_view=5,
     oracle_budget=False,
     adjust_budget=-30,
     method="factorsum",
@@ -268,7 +270,9 @@ def eval_sampled_job(
         strict_budget=strict_budget,
         content_weight=content_weight,
         budget_weight=budget_weight,
+        custom_guidance=custom_guidance,
         method=method,
+        min_words_per_view=min_words_per_view,
     )
 
     summary = "\n".join(summary)
@@ -281,10 +285,12 @@ def evaluate_sampled(
     targets,
     doc_ids,
     text_guidance=None,
+    custom_guidance=None,
     method="factorsum",
     token_budget=None,
     strict_budget=False,
     min_budget=10,
+    min_words_per_view=5,
     max_target_tokens=None,
     good_score=None,
     bad_score=None,
@@ -297,11 +303,12 @@ def evaluate_sampled(
     seed=17,
 ):
 
-    unique_doc_ids = list(set(doc_ids))
+    unique_doc_ids = sorted(list(set(doc_ids)))
     _summary_views = []
     _targets = []
     _text_guidance = []
     _token_budget = []
+    _custom_guidance = []
 
     for doc_id in unique_doc_ids[:n_samples]:
         doc_summary_views = [
@@ -320,12 +327,20 @@ def evaluate_sampled(
         else:
             _token_budget.append(token_budget)
 
+        if custom_guidance is None:
+            _custom_guidance.append(None)
+        elif type(custom_guidance) == list:
+            _custom_guidance.append(custom_guidance[doc_id])
+        else:
+            _custom_guidance.append(custom_guidance)
+
     results = p_map(
-        lambda sample_summary_views, target, text_guidance, token_budget: eval_sampled_job(
+        lambda sample_summary_views, target, text_guidance, token_budget, custom_guidance: eval_sampled_job(
             sample_summary_views,
             target,
             text_guidance=text_guidance,
             token_budget=token_budget,
+            custom_guidance=custom_guidance,
             strict_budget=strict_budget,
             min_budget=min_budget,
             oracle_budget=oracle_budget,
@@ -333,11 +348,13 @@ def evaluate_sampled(
             content_weight=content_weight,
             budget_weight=budget_weight,
             method=method,
+            min_words_per_view=min_words_per_view,
         ),
         _summary_views,
         _targets,
         _text_guidance,
         _token_budget,
+        _custom_guidance,
     )
 
     summaries = [r[0] for r in results]

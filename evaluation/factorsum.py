@@ -46,6 +46,7 @@ def default_eval_args(params, max_samples, seed):
         max_target_tokens=None,
         content_weight=params["content_weight"],
         budget_weight=params["budget_weight"],
+        min_words_per_view=params["min_words_per_view"],
         n_samples=max_samples,
         text_guidance=None,
         seed=seed,
@@ -53,46 +54,33 @@ def default_eval_args(params, max_samples, seed):
     return default_kwargs
 
 
-def eval_with_guidance(
-    eval_data,
-    content,
-    budget,
-    params,
-    default_kwargs,
-    save_to=None,
-    method="factorsum",
-    summary_type=None,
-):
+def get_guidance_kwargs(initial_kwargs, eval_data, params, budget_type, content_type):
+    kwargs = initial_kwargs.copy()
 
-    print(">> Summarization method:", method)
-    print()
-    print(f">> {content} content guidance, {budget} budget")
-    kwargs = default_kwargs.copy()
-
-    if budget == "fixed":
+    if budget_type == "fixed":
         print(f'token_budget: {params["token_budget"]}')
         kwargs["token_budget"] = params["token_budget"]
     else:
-        kwargs["token_budget"] = eval_data.get(f"{budget}_summary_lengths")
+        kwargs["token_budget"] = eval_data.get(f"{budget_type}_summary_lengths")
 
     if (
-        kwargs["token_budget"] is None and budget != "oracle"
+        kwargs["token_budget"] is None and budget_type != "oracle"
     ):  # and budget in ['pegasus', 'bigbird']:
-        print(f"Skipping: {budget}_summary_lengths not found in evaluation data")
+        print(f"Skipping: {budget_type}_summary_lengths not found in evaluation data")
         return None
 
-    if content != "no":
-        kwargs["text_guidance"] = _join_texts(content, eval_data)
+    if content_type != "no":
+        kwargs["text_guidance"] = _join_texts(content_type, eval_data)
 
     empty_text_guidance = (
         kwargs["text_guidance"] is None or len(kwargs["text_guidance"]) == 0
     )
-    if empty_text_guidance and content in ["pegasus", "bigbird"]:
-        print(f"Skipping: {content}_summaries not found in evaluation data")
+    if empty_text_guidance and content_type in ["pegasus", "bigbird"]:
+        print(f"Skipping: {content_type}_summaries not found in evaluation data")
         return None
 
-    kwargs["oracle_budget"] = budget == "oracle"
-    budget_adjust_key = f"{content}_content_{budget}_budget_adjust"
+    kwargs["oracle_budget"] = budget_type == "oracle"
+    budget_adjust_key = f"{content_type}_content_{budget_type}_budget_adjust"
     budget_adjust = params.get(budget_adjust_key)
 
     if budget_adjust is None:
@@ -107,8 +95,10 @@ def eval_with_guidance(
     print("Content weight:", kwargs["content_weight"])
     print("Budget weight:", kwargs["budget_weight"])
 
-    doc_ids = eval_data["document_views"]["doc_ids"]
+    return kwargs
 
+
+def get_summary_views(eval_data, summary_type):
     print("Summary views type:", summary_type)
     if summary_type is None or summary_type == "summary_views":
         summary_views = eval_data["summary_views"]
@@ -124,11 +114,76 @@ def eval_with_guidance(
         # doc_ids = pd.Series(range(len(summary_views)))
 
     print("Summary views count:", len(summary_views))
+    return summary_views
+
+
+def eval_with_guidance(
+    eval_data,
+    content_type,
+    budget_type,
+    params,
+    default_kwargs,
+    save_to=None,
+    method="factorsum",
+    summary_type=None,
+):
+    print(">> Summarization method:", method)
+    print(f"> {content_type} content guidance, {budget_type} budget")
+
+    kwargs = get_guidance_kwargs(
+        default_kwargs, eval_data, params, budget_type, content_type
+    )
+
+    if kwargs is None:
+        return
+
+    doc_ids = eval_data["document_views"]["doc_ids"]
     targets = get_targets(eval_data["eval_dataset"])
+    summary_views = get_summary_views(eval_data, summary_type)
 
     return evaluate_sampled(
         summary_views, targets, doc_ids, method=method, save_preds_to=save_to, **kwargs
     )
+
+
+def get_content_types(summarization_method, content_types):
+    if summarization_method == "textrank":
+        allowed_content_types = ["no"]
+    else:
+        allowed_content_types = [
+            "no",
+            "oracle",
+            "source",
+            "pegasus",
+            "bigbird",
+            "bart-base",
+            "bart-large",
+            "source+bigbird",
+        ]
+
+    if content_types is None or len(content_types) == 0:
+        content_types = allowed_content_types
+
+    return content_types, allowed_content_types
+
+
+def get_budget_types(summarization_method, budget_types):
+    if summarization_method == "textrank":
+        allowed_budget_types = ["fixed", "oracle"]
+    else:
+        allowed_budget_types = [
+            "fixed",
+            "oracle",
+            "pegasus",
+            "bigbird",
+            "bart-base",
+            "bart-large",
+        ]
+
+    if budget_types is None or len(budget_types) == 0:
+        budget_types = allowed_budget_types
+
+    return budget_types, allowed_budget_types
 
 
 def evaluate(
@@ -146,6 +201,7 @@ def evaluate(
     intrinsic_model_id=None,
     samples_per_doc=None,
     sample_factor=None,
+    min_words_per_view=None,
     method="factorsum",
     cache_dir=None,
     save_dir="output/factorsum",
@@ -161,6 +217,7 @@ def evaluate(
         samples_per_doc=samples_per_doc,
         sample_factor=sample_factor,
         intrinsic_model_id=intrinsic_model_id,
+        min_words_per_view=min_words_per_view,
     )
 
     eval_data = load_eval_data(
@@ -173,34 +230,8 @@ def evaluate(
         cache_dir=cache_dir,
     )
     default_kwargs = default_eval_args(params, max_samples, seed)
-
-    if method == "textrank":
-        allowed_content_types = ["no"]
-        allowed_budget_types = ["fixed", "oracle"]
-    else:
-        allowed_content_types = [
-            "no",
-            "oracle",
-            "source",
-            "pegasus",
-            "bigbird",
-            "bart-base",
-            "bart-large",
-            "source+bigbird",
-        ]
-        allowed_budget_types = [
-            "fixed",
-            "oracle",
-            "pegasus",
-            "bigbird",
-            "bart-base",
-            "bart-large",
-        ]
-
-    if content_types is None or len(content_types) == 0:
-        content_types = allowed_content_types
-    if budget_types is None or len(budget_types) == 0:
-        budget_types = allowed_budget_types
+    content_types, allowed_content_types = get_content_types(method, content_types)
+    budget_types, allowed_budget_types = get_budget_types(method, budget_types)
 
     for content_type, budget_type in itertools.product(content_types, budget_types):
         assert content_type in allowed_content_types

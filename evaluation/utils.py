@@ -71,10 +71,19 @@ def log_summary(doc_id, pred, target, score, bad_score, good_score, score_key="r
 
 
 def get_output_path(
-    save_dir, dataset, split, content, budget, training_domain=None, timestr=None
+    save_dir,
+    dataset,
+    split,
+    content,
+    budget,
+    training_domain=None,
+    timestr=None,
+    custom_suffix=None,
 ):
     save_to = None
     suffix = f"{content}_content-{budget}_budget"
+    if custom_suffix:
+        suffix = f"{suffix}-{custom_suffix}"
 
     if save_dir:
         save_dir = f"{save_dir}-{dataset}-{split}"
@@ -184,7 +193,7 @@ def load_eval_data(
         split,
         data_dir,
         training_domain=training_domain,
-        intrinsic_model_id=params["intrinsic_model_id"],
+        intrinsic_model_id=params["intrinsic_importance_model_id"],
         sample_type=params["sample_type"],
         sample_factor=params["sample_factor"],
         views_per_doc=params["views_per_doc"],

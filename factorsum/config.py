@@ -10,6 +10,7 @@ def _get_params():
     params["views_per_doc"] = 20
     params["sample_factor"] = 5
     params["sample_type"] = "random"
+    params["min_words_per_view"] = 5
 
     # we adjust budgets so that the average predicted summary words
     # is close to the validation set average reference summary words

@@ -156,16 +156,16 @@ def _greedy_summary(
     views,
     guidance=None,
     patience=-1,
-    min_words=5,
+    min_words_per_view=5,
 ):
 
     summary = []
     summary_idxs = []
 
-    view_idxs, _ = _get_valid_view_idxs(views, min_words=min_words)
+    view_idxs, _ = _get_valid_view_idxs(views, min_words=min_words_per_view)
 
     # sent tokenize all preds to get more fine-grained information
-    result = sent_tokenize_views(views, view_idxs)
+    result = sent_tokenize_views(views, view_idxs, min_words=min_words_per_view)
     sents, sent_idxs, sent_to_view_idxs = result
 
     # find best greedy summary limited by patience
@@ -186,9 +186,9 @@ def _greedy_summary(
     return summary, summary_idxs
 
 
-def _textrank_summary(views, token_budget, min_words=5):
+def _textrank_summary(views, token_budget, min_words_per_view=5):
 
-    _, views = _get_valid_view_idxs(views, min_words=min_words)
+    _, views = _get_valid_view_idxs(views, min_words=min_words_per_view)
     views = "\n".join(views)
     if len(nltk.word_tokenize(views)) < token_budget:
         summary = views
@@ -231,6 +231,7 @@ def find_best_summary(
     custom_guidance=None,
     verbose=False,
     method="factorsum",
+    min_words_per_view=5,
 ):
 
     summary = []
@@ -250,8 +251,7 @@ def find_best_summary(
 
     if method == "factorsum":
         summary, summary_idxs = _greedy_summary(
-            summary_views,
-            guidance=guidance,
+            summary_views, guidance=guidance, min_words_per_view=min_words_per_view
         )
     elif method == "textrank":
         summary = _textrank_summary(summary_views, target_budget)

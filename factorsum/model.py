@@ -74,6 +74,7 @@ class FactorSum:
         custom_guidance=None,
         sample_factor=5,
         views_per_doc=20,
+        min_words_per_view=5,
         verbose=False,
         seed=17,
     ):
@@ -93,6 +94,7 @@ class FactorSum:
             target_budget,
             target_content=target_content,
             custom_guidance=custom_guidance,
+            min_words_per_view=min_words_per_view,
             verbose=verbose,
         )
 
@@ -136,8 +138,6 @@ def summarize(
     target_content=None,
     source_target_budget=None,
     custom_guidance=None,
-    sample_factor=5,
-    views_per_doc=20,
 ):
 
     if target:
@@ -171,8 +171,9 @@ def summarize(
         target_content=target_content,
         source_target_budget=source_target_budget,
         custom_guidance=custom_guidance,
-        sample_factor=sample_factor,
-        views_per_doc=views_per_doc,
+        sample_factor=params["sample_factor"],
+        views_per_doc=params["views_per_doc"],
+        min_words_per_view=params["min_words_per_view"],
         verbose=True,
     )
     print("> Summary words:", sum([len(nltk.word_tokenize(sent)) for sent in summary]))
@@ -191,22 +192,26 @@ def run(
     split="test",
     training_domain=None,
     budget_weight=None,
+    content_weight=None,
     source_token_budget=None,
     budget_guidance=None,
     intrinsic_model_id=None,
     content_guidance_type=None,
     views_per_doc=20,
     sample_factor=5,
+    min_words_per_view=5,
     cache_dir=None,
 ):
 
     params = model_params(
         dataset_name,
         budget_weight=budget_weight,
+        content_weight=content_weight,
         token_budget=budget_guidance,
         views_per_doc=views_per_doc,
         sample_factor=sample_factor,
         intrinsic_model_id=intrinsic_model_id,
+        min_words_per_view=min_words_per_view,
     )
 
     eval_data = load_dataset(
@@ -241,8 +246,6 @@ def run(
         target_content=target_content,
         content_guidance_type=content_guidance_type,
         source_target_budget=source_token_budget,
-        sample_factor=sample_factor,
-        views_per_doc=views_per_doc,
     )
 
 
