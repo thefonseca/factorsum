@@ -56,6 +56,8 @@ def download_resource(url, local_path, extract_zip=True):
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
     if url and not local_path.exists():
+        logger.info(f"Model not found in path: {local_path}")
+
         if is_url(url):
             logger.info(f"Downloading resource from {url}...")
             r = requests.get(url)
@@ -79,7 +81,9 @@ def _download_model(
     if params is None:
         params = model_params(training_domain)
     model_id = params[f"{model_type}_model_id"]
-    model_path = f"model-{model_id}:v0"
+    model_path = f"model-{model_id}"
+    if ":v0" not in model_path:
+        model_path = f"{model_path}:v0"
     model_path = Path(model_dir) / model_path
     download_resource(params[f"{model_type}_model_url"], f"{model_path}.zip")
     return model_path
@@ -92,6 +96,7 @@ def load_model(
     params=None,
 ):
     if Path(model_domain_or_path).exists():
+        logger.info(f"Model found in path: {model_domain_or_path}")
         model_path = model_domain_or_path
     else:
         model_path = _download_model(
@@ -151,7 +156,16 @@ def apply_word_limit(text, max_words, return_list=False):
     return "\n".join(truncated_sents)
 
 
-def sent_tokenize_views(views, view_idxs, summary_idxs=None):
+def clean_summary_view(sent):
+    sent = start_with_non_alpha_pattern.sub("", sent)
+    sent = sent.replace(" .", ".")
+    sent = sent.replace(". ", ".")
+    sent = sent.replace("\n", "")
+    # sent = re.sub(" \.$", ".", sent)
+    return sent
+
+
+def sent_tokenize_views(views, view_idxs, summary_idxs=None, min_words=5):
     sents = []
     sent_idxs = []
     sent_to_view_idxs = []
@@ -164,17 +178,19 @@ def sent_tokenize_views(views, view_idxs, summary_idxs=None):
         # try to put spaces after period to improve sentence tokenization
         view = re.sub(r"\.([\D]{2})", r" . \1", view)
         view_sents = nltk.sent_tokenize(view)
+        for sent in view_sents:
+            # avoid tokenization if any of the sentences is too short
+            sent = clean_summary_view(sent)
+            if len(sent.split()) < min_words:
+                view_sents = [view]
+                break
+
         sents.extend(view_sents)
 
         sent_to_view_idxs.extend([idx] * len(view_sents))
         sent_idxs.extend(range(len(sent_idxs), len(sent_idxs) + len(view_sents)))
 
-    def clean_sent(sent):
-        sent = start_with_non_alpha_pattern.sub("", sent)
-        sent = sent.replace(" .", ".")
-        return sent
-
-    sents = [clean_sent(s) for s in sents]
+    sents = [clean_summary_view(s) for s in sents]
 
     return sents, sent_idxs, sent_to_view_idxs
 
