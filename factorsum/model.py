@@ -89,7 +89,7 @@ class FactorSum:
         if target_content is None and source_target_budget:
             target_content = get_source_guidance(source_sents, source_target_budget)
 
-        summary, _, guidance_scores = find_best_summary(
+        summary, guidance_scores = find_best_summary(
             summary_views,
             target_budget,
             target_content=target_content,
@@ -191,7 +191,6 @@ def run(
     dataset_name="arxiv",
     split="test",
     training_domain=None,
-    budget_weight=None,
     content_weight=None,
     source_token_budget=None,
     budget_guidance=None,
@@ -205,7 +204,6 @@ def run(
 
     params = model_params(
         dataset_name,
-        budget_weight=budget_weight,
         content_weight=content_weight,
         token_budget=budget_guidance,
         views_per_doc=views_per_doc,

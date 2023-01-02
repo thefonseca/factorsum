@@ -165,14 +165,11 @@ def clean_summary_view(sent):
     return sent
 
 
-def sent_tokenize_views(views, view_idxs, summary_idxs=None, min_words=5):
+def sent_tokenize_views(views, summary=None, min_words=5):
     sents = []
-    sent_idxs = []
-    sent_to_view_idxs = []
 
-    for idx in view_idxs:
-        view = views[idx]
-        if summary_idxs is not None and idx in summary_idxs:
+    for view in views:
+        if summary is not None and view in summary:
             continue
 
         # try to put spaces after period to improve sentence tokenization
@@ -187,12 +184,8 @@ def sent_tokenize_views(views, view_idxs, summary_idxs=None, min_words=5):
 
         sents.extend(view_sents)
 
-        sent_to_view_idxs.extend([idx] * len(view_sents))
-        sent_idxs.extend(range(len(sent_idxs), len(sent_idxs) + len(view_sents)))
-
     sents = [clean_summary_view(s) for s in sents]
-
-    return sents, sent_idxs, sent_to_view_idxs
+    return sents
 
 
 def show_summary(summary):

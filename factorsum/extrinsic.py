@@ -1,42 +1,42 @@
-import re
-
 import nltk
 from summa import summarizer
 
-from .guidance import BudgetGuidance, ROUGEContentGuidance
+from .constraints import SummaryViewConstraint, BudgetConstraint, RedundancyConstraint
+from .guidance import ROUGEContentGuidance
 from .utils import apply_word_limit, show_summary, sent_tokenize_views
 from .oracle import get_oracles
-from .redundancy import has_similar_content, has_repeated_trigram
 
 try:
     nltk.data.find("tokenizers/punkt")
 except:
     nltk.download("punkt", quiet=True)
 
-non_alpha_pattern = re.compile("[^\w_\s]+")
 
-
-def _get_valid_view_idxs(views, min_words=5):
+def _get_valid_views(views, min_words=5):
     n_ignored = sum([p is None for p in views])
     if n_ignored > 0:
         print(f"Ignoring {n_ignored} predicted summary")
         views = [p for p in views if p is not None]
 
-    view_idxs = []
     _views = []
 
-    for idx, view in enumerate(views):
-        view_alpha = non_alpha_pattern.sub("", view)
-        has_min_length = len(view_alpha.split()) > min_words if min_words else True
+    constraint = SummaryViewConstraint(min_length=min_words)
 
-        if not has_min_length:
+    for view in views:
+        if not constraint.check(view):
             continue
 
         if view not in _views:
             _views.append(view)
-            view_idxs.append(idx)
 
-    return view_idxs, _views
+    return _views
+
+
+def _preprocess_summary_views(views, min_words_per_view):
+    views = _get_valid_views(views, min_words=min_words_per_view)
+    # sent tokenize all preds to get more fine-grained information
+    views = sent_tokenize_views(views, min_words=min_words_per_view)
+    return views
 
 
 def _candidate_score(candidate_summary, guidance):
@@ -52,87 +52,66 @@ def _candidate_score(candidate_summary, guidance):
     return candidate_score
 
 
-def _add_best_view(
-    summary,
-    summary_idxs,
-    views,
-    view_idxs,
-    guidance=None,
-    trigrams=None,
-):
-
-    best_score = None
-    best_summary = None
-    best_idxs = None
-    best_trigrams = list(trigrams) if trigrams is not None else None
-
-    for ii in view_idxs:
-        if ii in summary_idxs:
-            continue
-
-        candidate_trigrams = None
-        if trigrams is not None:
-            candidate_trigrams = list(trigrams)
-            if has_repeated_trigram(views[ii], candidate_trigrams):
-                continue
-        else:
-            if has_similar_content(views[ii], summary):
-                continue
-
-        candidate_summary = summary + [views[ii]]
-        idxs = summary_idxs + [ii]
-
-        score = _candidate_score(candidate_summary, guidance)
-
-        if best_score is None or best_score < score:
-            best_summary = candidate_summary
-            best_score = score
-            best_idxs = idxs
-            best_trigrams = candidate_trigrams
-
-    return best_summary, best_idxs, best_score, best_trigrams
-
-
 def _get_oracle_idxs(source_sents, target_sents):
     oracle_idxs = get_oracles([source_sents], [target_sents], progress_bar=False)[0]
     oracle_idxs = [x if x is not None else len(oracle_idxs) for x in oracle_idxs]
     return oracle_idxs
 
 
-def _reorder_sentences(summary, summary_idxs, target_content):
+def _reorder_sentences(summary, target_content):
     _target_content = target_content.replace("<n>", "")
     _target_content = nltk.sent_tokenize(_target_content)
     oracle_idxs = _get_oracle_idxs(_target_content, summary)
     summary = [x for _, x in sorted(zip(oracle_idxs, summary))]
-    summary_idxs = [x for _, x in sorted(zip(oracle_idxs, summary_idxs))]
-    return summary, summary_idxs
+    return summary
 
 
-def _find_best_summary(
-    summary,
-    summary_idxs,
+def _add_best_view(summary, views, guidance, constraints, current_score):
+    best_score = None
+    best_delta = None
+    best_summary = None
+    if current_score is None:
+        current_score = 0
+
+    for view in views:
+        if view in summary:
+            continue
+
+        if not all([c.check(summary, view) for c in constraints]):
+            continue
+
+        candidate_summary = summary + [view]
+        score = _candidate_score(candidate_summary, guidance)
+        # we normalize by the "cost" of the view to optimize a submodular
+        # function with a knapsack constraint. See Eq. 13 here:
+        # https://viterbi-web.usc.edu/~shanghua/teaching/Fall2021-670/krause12survey.pdf
+        delta = score - current_score
+        view_cost = len(nltk.word_tokenize(view))
+        delta = delta / (1.0 * view_cost)
+
+        if best_delta is None or best_delta < delta:
+            best_summary = candidate_summary
+            best_score = score
+            best_delta = delta
+
+    return best_summary, best_score
+
+
+def _greedy_summary(
     views,
-    view_idxs,
-    guidance=None,
+    guidance,
+    constraints,
     patience=-1,
 ):
-
+    summary = []
     best_summary = []
-    best_idxs = []
     attempts = 0
     best_score = None
 
     while True:
-
-        result = _add_best_view(
-            summary,
-            summary_idxs,
-            views,
-            view_idxs,
-            guidance=guidance,
-            trigrams=None,
+        _summary, score = _add_best_view(
+            summary, views, guidance, constraints, best_score
         )
-        _summary, _idxs, score, _ = result
 
         if _summary is None or len(summary) == len(_summary):
             break
@@ -143,52 +122,14 @@ def _find_best_summary(
         else:
             best_score = score
             best_summary = _summary
-            best_idxs = _idxs
             attempts = 0
 
         summary = _summary
-        summary_idxs = _idxs
 
-    return best_summary, best_idxs
-
-
-def _greedy_summary(
-    views,
-    guidance=None,
-    patience=-1,
-    min_words_per_view=5,
-):
-
-    summary = []
-    summary_idxs = []
-
-    view_idxs, _ = _get_valid_view_idxs(views, min_words=min_words_per_view)
-
-    # sent tokenize all preds to get more fine-grained information
-    result = sent_tokenize_views(views, view_idxs, min_words=min_words_per_view)
-    sents, sent_idxs, sent_to_view_idxs = result
-
-    # find best greedy summary limited by patience
-    result = _find_best_summary(
-        summary,
-        summary_idxs,
-        sents,
-        sent_idxs,
-        guidance=guidance,
-        patience=patience,
-    )
-    summary, idxs = result
-
-    # translate back to view-level index
-    summary_idxs = [sent_to_view_idxs[idx] for idx in idxs]
-
-    assert len(summary) == len(summary_idxs), f"{len(summary)} != {len(summary_idxs)}"
-    return summary, summary_idxs
+    return best_summary
 
 
-def _textrank_summary(views, token_budget, min_words_per_view=5):
-
-    _, views = _get_valid_view_idxs(views, min_words=min_words_per_view)
+def _textrank_summary(views, token_budget):
     views = "\n".join(views)
     if len(nltk.word_tokenize(views)) < token_budget:
         summary = views
@@ -200,15 +141,11 @@ def _textrank_summary(views, token_budget, min_words_per_view=5):
 
 
 def _get_guidance(
-    target_budget,
     target_content,
-    budget_weight=1.0,
     content_weight=1.0,
     custom_guidance=None,
 ):
-
-    guidance = [BudgetGuidance(target_budget, weight=budget_weight)]
-
+    guidance = []
     if target_content:
         guidance.append(ROUGEContentGuidance(target_content, weight=content_weight))
 
@@ -221,38 +158,44 @@ def _get_guidance(
     return guidance
 
 
+def _get_constraints(target_budget, custom_constraints=None):
+    constraints = [BudgetConstraint(target_budget), RedundancyConstraint()]
+    if custom_constraints:
+        if type(custom_constraints) == list:
+            constraints.extend(custom_constraints)
+        else:
+            constraints.append(custom_constraints)
+    return constraints
+
+
 def find_best_summary(
     summary_views,
     target_budget,
     strict_budget=False,
     target_content=None,
     content_weight=1.0,
-    budget_weight=1.0,
     custom_guidance=None,
+    custom_constraints=None,
     verbose=False,
     method="factorsum",
     min_words_per_view=5,
 ):
-
     summary = []
-    summary_idxs = []
 
     if target_content is not None:
         if type(target_content) == list:
             target_content = "\n".join(target_content)
 
     guidance = _get_guidance(
-        target_budget,
         target_content,
         content_weight=content_weight,
-        budget_weight=budget_weight,
         custom_guidance=custom_guidance,
     )
+    constraints = _get_constraints(target_budget, custom_constraints=custom_constraints)
+    summary_views = _preprocess_summary_views(summary_views, min_words_per_view)
 
     if method == "factorsum":
-        summary, summary_idxs = _greedy_summary(
-            summary_views, guidance=guidance, min_words_per_view=min_words_per_view
-        )
+        summary = _greedy_summary(summary_views, guidance, constraints)
     elif method == "textrank":
         summary = _textrank_summary(summary_views, target_budget)
     else:
@@ -261,10 +204,8 @@ def find_best_summary(
     if strict_budget:
         summary = apply_word_limit(summary, target_budget, return_list=True)
 
-    if target_content and summary_idxs:
-        summary, summary_idxs = _reorder_sentences(
-            summary, summary_idxs, target_content
-        )
+    if target_content:
+        summary = _reorder_sentences(summary, target_content)
 
     guidance_scores = {}
     if guidance:
@@ -274,4 +215,4 @@ def find_best_summary(
         print()
         show_summary(summary)
 
-    return summary, summary_idxs, guidance_scores
+    return summary, guidance_scores

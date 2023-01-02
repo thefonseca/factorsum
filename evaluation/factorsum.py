@@ -45,7 +45,6 @@ def default_eval_args(params, max_samples, seed):
         oracle_budget=False,
         max_target_tokens=None,
         content_weight=params["content_weight"],
-        budget_weight=params["budget_weight"],
         min_words_per_view=params["min_words_per_view"],
         n_samples=max_samples,
         text_guidance=None,
@@ -91,9 +90,7 @@ def get_guidance_kwargs(initial_kwargs, eval_data, params, budget_type, content_
     kwargs["adjust_budget"] = budget_adjust
 
     kwargs["content_weight"] = params["content_weight"]
-    kwargs["budget_weight"] = params["budget_weight"]
     print("Content weight:", kwargs["content_weight"])
-    print("Budget weight:", kwargs["budget_weight"])
 
     return kwargs
 
@@ -194,7 +191,6 @@ def evaluate(
     content_types=None,
     budget_types=None,
     training_domain=None,
-    budget_weight=None,
     source_token_budget=None,
     token_budget=None,
     summary_type="summary_views",
@@ -212,7 +208,6 @@ def evaluate(
     params = model_params(
         dataset_name,
         source_token_budget=source_token_budget,
-        budget_weight=budget_weight,
         token_budget=token_budget,
         samples_per_doc=samples_per_doc,
         sample_factor=sample_factor,

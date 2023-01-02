@@ -250,9 +250,7 @@ def eval_sampled_job(
     adjust_budget=-30,
     method="factorsum",
     content_weight=1.0,
-    budget_weight=1.0,
 ):
-
     if oracle_budget:
         target_words = nltk.word_tokenize("\n".join(target))
         _token_budget = len(target_words)
@@ -263,13 +261,12 @@ def eval_sampled_job(
     if _token_budget < min_budget:
         _token_budget = min_budget
 
-    summary, _, guidance_scores = find_best_summary(
+    summary, guidance_scores = find_best_summary(
         pred_views,
         _token_budget,
         target_content=text_guidance,
         strict_budget=strict_budget,
         content_weight=content_weight,
-        budget_weight=budget_weight,
         custom_guidance=custom_guidance,
         method=method,
         min_words_per_view=min_words_per_view,
@@ -298,7 +295,6 @@ def evaluate_sampled(
     adjust_budget=-30,
     n_samples=1000,
     content_weight=1.0,
-    budget_weight=1.0,
     save_preds_to=None,
     seed=17,
 ):
@@ -346,7 +342,6 @@ def evaluate_sampled(
             oracle_budget=oracle_budget,
             adjust_budget=adjust_budget,
             content_weight=content_weight,
-            budget_weight=budget_weight,
             method=method,
             min_words_per_view=min_words_per_view,
         ),

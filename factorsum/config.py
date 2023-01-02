@@ -5,7 +5,6 @@ def _get_params():
 
     params = defaultdict(int)
     params["content_weight"] = 1.0
-    params["budget_weight"] = 1.0
     params["token_budget"] = 200
     params["views_per_doc"] = 20
     params["sample_factor"] = 5

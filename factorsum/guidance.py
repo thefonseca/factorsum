@@ -29,7 +29,7 @@ class ROUGEContentGuidance:
             for key, value in rouge["rouge"].items():
                 score[key] = value
 
-            total_score = sum([score[ngram].fmeasure for ngram in self.rouge_ngrams])
+            total_score = sum([score[ngram].recall for ngram in self.rouge_ngrams])
             return self.weight * total_score
 
 
@@ -44,5 +44,5 @@ class BudgetGuidance:
         for sent in candidate_summary:
             summary_tokens += len(nltk.word_tokenize(sent))
 
-        error = ((self.target_budget - summary_tokens) / self.target_budget) ** 2
+        error = abs(self.target_budget - summary_tokens) / self.target_budget  # ** 2
         return self.weight * -error

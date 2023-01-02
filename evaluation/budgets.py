@@ -72,7 +72,6 @@ def evaluate(
     dataset_name="arxiv",
     split="test",
     training_domain=None,
-    budget_weight=None,
     source_token_budget=None,
     summary_type=None,
     intrinsic_model_id=None,
@@ -99,7 +98,6 @@ def evaluate(
     params = model_params(
         dataset_name,
         source_token_budget=source_token_budget,
-        budget_weight=budget_weight,
         samples_per_doc=samples_per_doc,
         sample_factor=sample_factor,
         intrinsic_model_id=intrinsic_model_id,
