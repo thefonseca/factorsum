@@ -52,7 +52,7 @@ def _get_params():
     params["arxiv"]["source_content_oracle_budget_adjust"] = 4
     params["arxiv"]["oracle_content_fixed_budget_adjust"] = 7
     params["arxiv"]["pegasus_content_fixed_budget_adjust"] = 10
-    params["arxiv"]["bigbird_content_fixed_budget_adjust"] = 10
+    params["arxiv"]["bigbird_content_fixed_budget_adjust"] = 25
     params["arxiv"]["pegasus_content_pegasus_budget_adjust"] = 15
     params["arxiv"]["bigbird_content_bigbird_budget_adjust"] = 12
     params["arxiv"]["dataset_path"] = "scientific_papers"
