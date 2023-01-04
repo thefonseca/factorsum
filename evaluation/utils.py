@@ -162,16 +162,12 @@ def _load_eval_data(
 
 def _get_source_guidance(sources, token_budget):
     source_guidance = []
-    guidance_tokens_list = []
 
     for src in sources:
         guidance = get_source_guidance(src, token_budget)
-        guidance_tokens = 0
         source_guidance.append(guidance)
-        guidance_tokens_list.append(guidance_tokens)
 
     print("Source guidance token budget:", token_budget)
-    print("Avg tokens in source guidance:", np.mean(guidance_tokens_list))
     print(
         "Avg sentences in source guidance:", np.mean([len(s) for s in source_guidance])
     )

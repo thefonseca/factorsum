@@ -75,16 +75,24 @@ def download_resource(url, local_path, extract_zip=True):
                 zip_ref.extractall(extract_folder)
 
 
+def get_model_path(model_type, model_id, model_dir="artifacts"):
+    model_type = model_type.replace("-", "_")
+    model_path = f"model-{model_id}"
+    if ":v0" not in model_path:
+        model_path = f"{model_path}:v0"
+    model_path = Path(model_dir) / model_path
+    return model_path
+
+
 def _download_model(
     training_domain, model_dir, model_type="intrinsic_importance", params=None
 ):
     if params is None:
         params = model_params(training_domain)
+
     model_id = params[f"{model_type}_model_id"]
-    model_path = f"model-{model_id}"
-    if ":v0" not in model_path:
-        model_path = f"{model_path}:v0"
-    model_path = Path(model_dir) / model_path
+    model_path = get_model_path(model_type, model_id, model_dir)
+
     download_resource(params[f"{model_type}_model_url"], f"{model_path}.zip")
     return model_path
 
@@ -106,11 +114,14 @@ def load_model(
     logger.info(f"Loading {model_type} model from {model_path}...")
     tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
 
-    if model_type == "concept_classification":
-        pipeline_type = "text-classification"
+    model_type = model_type.replace("-", "_")
+    pipeline_type = "summarization"
+    if params:
+        pipeline_type = params.get(f"{model_type}_pipeline_type", "summarization")
+
+    if pipeline_type == "text-classification":
         model = AutoModelForSequenceClassification.from_pretrained(model_path)
     else:
-        pipeline_type = "summarization"
         model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
 
     try:

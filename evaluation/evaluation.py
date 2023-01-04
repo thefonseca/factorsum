@@ -257,9 +257,10 @@ def eval_sampled_job(
     else:
         _token_budget = token_budget
 
-    _token_budget += adjust_budget
-    if _token_budget < min_budget:
-        _token_budget = min_budget
+    if _token_budget:
+        _token_budget += adjust_budget
+        if _token_budget < min_budget:
+            _token_budget = min_budget
 
     summary, guidance_scores = find_best_summary(
         pred_views,
@@ -318,7 +319,7 @@ def evaluate_sampled(
         else:
             _text_guidance.append(None)
 
-        if type(token_budget) == list:
+        if token_budget and type(token_budget) == list:
             _token_budget.append(token_budget[doc_id])
         else:
             _token_budget.append(token_budget)

@@ -171,13 +171,15 @@ def _greedy_summary(
     deltas = None
 
     while True:
-        _summary, score, deltas = _add_best_view_fast(
-            summary, views, guidance, constraints, best_score, deltas
-        )
-
-        # _summary, score = _add_best_view(
-        #     summary, views, guidance, constraints, best_score
+        # _summary, score, deltas = _add_best_view_fast(
+        #     summary, views, guidance, constraints, best_score, deltas
         # )
+        # print(score, best_score)
+
+        _summary, score = _add_best_view(
+            summary, views, guidance, constraints, best_score
+        )
+        # print(best_score, score)
 
         if _summary is None or len(summary) == len(_summary):
             break
@@ -209,11 +211,16 @@ def _textrank_summary(views, token_budget):
 def _get_guidance(
     target_content,
     content_weight=1.0,
+    content_score_key=None,
     custom_guidance=None,
 ):
     guidance = []
     if target_content:
-        guidance.append(ROUGEContentGuidance(target_content, weight=content_weight))
+        guidance.append(
+            ROUGEContentGuidance(
+                target_content, weight=content_weight, score_key=content_score_key
+            )
+        )
 
     if custom_guidance:
         if type(custom_guidance) == list:
@@ -224,8 +231,12 @@ def _get_guidance(
     return guidance
 
 
-def _get_constraints(target_budget, custom_constraints=None):
-    constraints = [BudgetConstraint(target_budget), RedundancyConstraint()]
+def _get_constraints(target_budget=None, custom_constraints=None):
+    constraints = [RedundancyConstraint()]
+
+    if target_budget and target_budget > 0:
+        constraints.append(BudgetConstraint(target_budget))
+
     if custom_constraints:
         if type(custom_constraints) == list:
             constraints.extend(custom_constraints)
@@ -252,12 +263,20 @@ def find_best_summary(
         if type(target_content) == list:
             target_content = "\n".join(target_content)
 
+    if target_budget and target_budget > 0:
+        content_score_key = "recall"
+    else:
+        content_score_key = "fmeasure"
+
     guidance = _get_guidance(
         target_content,
         content_weight=content_weight,
+        content_score_key=content_score_key,
         custom_guidance=custom_guidance,
     )
-    constraints = _get_constraints(target_budget, custom_constraints=custom_constraints)
+    constraints = _get_constraints(
+        target_budget=target_budget, custom_constraints=custom_constraints
+    )
     summary_views = _preprocess_summary_views(summary_views, min_words_per_view)
 
     if method == "factorsum":

@@ -22,6 +22,7 @@ def _get_params():
         "dataset_url"
     ] = "https://www.dropbox.com/s/4vh8hfoio7r4vfl/factorsum-pubmed.zip?dl=1"
     params["pubmed"]["token_budget"] = 205
+    params["pubmed"]["source_token_budget"] = 205
     params["pubmed"]["no_content_fixed_budget_adjust"] = 8
     params["pubmed"]["no_content_oracle_budget_adjust"] = 11
     params["pubmed"]["no_content_pegasus_budget_adjust"] = 7
@@ -30,7 +31,7 @@ def _get_params():
     params["pubmed"]["source_content_oracle_budget_adjust"] = 16
     params["pubmed"]["oracle_content_fixed_budget_adjust"] = 14
     params["pubmed"]["pegasus_content_fixed_budget_adjust"] = 30
-    params["pubmed"]["bigbird_content_fixed_budget_adjust"] = 27
+    params["pubmed"]["bigbird_content_fixed_budget_adjust"] = 45
     params["pubmed"]["pegasus_content_pegasus_budget_adjust"] = 17
     params["pubmed"]["bigbird_content_bigbird_budget_adjust"] = 22
     params["pubmed"]["dataset_path"] = "scientific_papers"
@@ -44,6 +45,7 @@ def _get_params():
         "dataset_url"
     ] = "https://www.dropbox.com/s/tzlcptrgwu41un8/factorsum-arxiv.zip?dl=1"
     params["arxiv"]["token_budget"] = 165
+    params["arxiv"]["source_token_budget"] = 200
     params["arxiv"]["no_content_fixed_budget_adjust"] = 2
     params["arxiv"]["no_content_oracle_budget_adjust"] = 4
     params["arxiv"]["no_content_pegasus_budget_adjust"] = 6
@@ -52,7 +54,7 @@ def _get_params():
     params["arxiv"]["source_content_oracle_budget_adjust"] = 4
     params["arxiv"]["oracle_content_fixed_budget_adjust"] = 7
     params["arxiv"]["pegasus_content_fixed_budget_adjust"] = 10
-    params["arxiv"]["bigbird_content_fixed_budget_adjust"] = 25
+    params["arxiv"]["bigbird_content_fixed_budget_adjust"] = 15
     params["arxiv"]["pegasus_content_pegasus_budget_adjust"] = 15
     params["arxiv"]["bigbird_content_bigbird_budget_adjust"] = 12
     params["arxiv"]["dataset_path"] = "scientific_papers"
@@ -66,6 +68,7 @@ def _get_params():
         "dataset_url"
     ] = "https://www.dropbox.com/s/vc5yyooa2o6euyj/factorsum-govreport.zip?dl=1"
     params["govreport"]["token_budget"] = 648
+    params["govreport"]["source_token_budget"] = 648
     params["govreport"]["no_content_fixed_budget_adjust"] = 8
     params["govreport"]["no_content_oracle_budget_adjust"] = 8
     params["govreport"]["source_content_fixed_budget_adjust"] = -24

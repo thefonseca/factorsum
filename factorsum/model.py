@@ -136,7 +136,6 @@ def summarize(
     target=None,
     content_guidance_type=None,
     target_content=None,
-    source_target_budget=None,
     custom_guidance=None,
 ):
 
@@ -150,26 +149,34 @@ def summarize(
     if content_guidance_type is None:
         content_guidance_type = "no"
 
-    budget_adjust_key = f"{content_guidance_type}_content_fixed_budget_adjust"
-    budget_adjust = params.get(budget_adjust_key, 0)
-    target_budget = params["token_budget"] + budget_adjust
+    target_budget = None
+    if params.get("token_budget"):
+        budget_adjust_key = f"{content_guidance_type}_content_fixed_budget_adjust"
+        budget_adjust = params.get(budget_adjust_key, 0)
+        target_budget = params["token_budget"] + budget_adjust
 
+    source_token_budget = params["source_token_budget"]
     if content_guidance_type == "source":
-        if source_target_budget is None:
-            source_target_budget = target_budget
+        if source_token_budget is None and target_budget:
+            source_token_budget = target_budget
     else:
-        source_target_budget = None
+        source_token_budget = None
 
-    setup_desc = f"> Generating summary with {content_guidance_type} "
-    setup_desc += f"content guidance and budget guidance of {target_budget} ..."
+    setup_desc = f">> Generating summary"
+    if target_budget:
+        setup_desc += f"\n> budget guidance: {target_budget}"
+    if content_guidance_type:
+        setup_desc += f"\n> content guidance: {content_guidance_type}"
+        setup_desc += f"\n> source token budget: {source_token_budget}"
+
     print()
-    print(textwrap.fill(setup_desc, 80))
+    print(setup_desc)
 
     summary, guidance_scores = model.summarize(
         source,
         target_budget=target_budget,
         target_content=target_content,
-        source_target_budget=source_target_budget,
+        source_target_budget=source_token_budget,
         custom_guidance=custom_guidance,
         sample_factor=params["sample_factor"],
         views_per_doc=params["views_per_doc"],
@@ -193,7 +200,7 @@ def run(
     training_domain=None,
     content_weight=None,
     source_token_budget=None,
-    budget_guidance=None,
+    token_budget=None,
     intrinsic_model_id=None,
     content_guidance_type=None,
     views_per_doc=20,
@@ -205,7 +212,8 @@ def run(
     params = model_params(
         dataset_name,
         content_weight=content_weight,
-        token_budget=budget_guidance,
+        token_budget=token_budget,
+        source_token_budget=source_token_budget,
         views_per_doc=views_per_doc,
         sample_factor=sample_factor,
         intrinsic_model_id=intrinsic_model_id,
@@ -236,6 +244,7 @@ def run(
 
     model = FactorSum(training_domain)
     source = eval_data["sources"][doc_id]
+
     _ = summarize(
         model,
         source,
@@ -243,7 +252,6 @@ def run(
         target=eval_data["targets"][doc_id],
         target_content=target_content,
         content_guidance_type=content_guidance_type,
-        source_target_budget=source_token_budget,
     )
 
 

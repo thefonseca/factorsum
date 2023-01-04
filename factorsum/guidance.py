@@ -9,14 +9,17 @@ except:
 
 
 class ROUGEContentGuidance:
-    def __init__(self, target_content, weight=1.0, rouge_ngrams=None):
+    def __init__(self, target_content, weight=1.0, rouge_ngrams=None, score_key=None):
         if type(target_content) == list:
             target_content = "\n".join(target_content)
         self.target_content = target_content
+        self.weight = weight
         if rouge_ngrams is None:
             rouge_ngrams = ["rouge1"]
         self.rouge_ngrams = rouge_ngrams
-        self.weight = weight
+        if score_key is None:
+            score_key = "recall"
+        self.score_key = score_key
 
     def score(self, candidate_summary):
         score = {}
@@ -29,7 +32,9 @@ class ROUGEContentGuidance:
             for key, value in rouge["rouge"].items():
                 score[key] = value
 
-            total_score = sum([score[ngram].recall for ngram in self.rouge_ngrams])
+            total_score = sum(
+                [getattr(score[ngram], self.score_key) for ngram in self.rouge_ngrams]
+            )
             return self.weight * total_score
 
 

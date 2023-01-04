@@ -59,12 +59,13 @@ def get_guidance_kwargs(initial_kwargs, eval_data, params, budget_type, content_
     if budget_type == "fixed":
         print(f'token_budget: {params["token_budget"]}')
         kwargs["token_budget"] = params["token_budget"]
-    else:
+    elif budget_type and budget_type != "no":
         kwargs["token_budget"] = eval_data.get(f"{budget_type}_summary_lengths")
 
-    if (
-        kwargs["token_budget"] is None and budget_type != "oracle"
-    ):  # and budget in ['pegasus', 'bigbird']:
+    if kwargs.get("token_budget") is None and budget_type not in [
+        "oracle",
+        "no",
+    ]:  # and budget in ['pegasus', 'bigbird']:
         print(f"Skipping: {budget_type}_summary_lengths not found in evaluation data")
         return None
 
@@ -82,12 +83,13 @@ def get_guidance_kwargs(initial_kwargs, eval_data, params, budget_type, content_
     budget_adjust_key = f"{content_type}_content_{budget_type}_budget_adjust"
     budget_adjust = params.get(budget_adjust_key)
 
-    if budget_adjust is None:
-        print(f"Warning: budget adjustment is not set ({budget_adjust_key})")
-        print(f"Using default value: {budget_adjust_key} = 0")
-        budget_adjust = 0
-    print(f"adjust_budget: {budget_adjust}")
-    kwargs["adjust_budget"] = budget_adjust
+    if kwargs.get("token_budget"):
+        if budget_adjust is None:
+            print(f"Warning: budget adjustment is not set ({budget_adjust_key})")
+            print(f"Using default value: {budget_adjust_key} = 0")
+            budget_adjust = 0
+        print(f"adjust_budget: {budget_adjust}")
+        kwargs["adjust_budget"] = budget_adjust
 
     kwargs["content_weight"] = params["content_weight"]
     print("Content weight:", kwargs["content_weight"])
@@ -169,6 +171,7 @@ def get_budget_types(summarization_method, budget_types):
         allowed_budget_types = ["fixed", "oracle"]
     else:
         allowed_budget_types = [
+            "no",
             "fixed",
             "oracle",
             "pegasus",
@@ -229,8 +232,8 @@ def evaluate(
     budget_types, allowed_budget_types = get_budget_types(method, budget_types)
 
     for content_type, budget_type in itertools.product(content_types, budget_types):
-        assert content_type in allowed_content_types
-        assert budget_type in allowed_budget_types
+        assert content_type in allowed_content_types, content_type
+        assert budget_type in allowed_budget_types, budget_type
 
         if content_type != "no" and eval_data.get(f"{content_type}_summaries") is None:
             continue
