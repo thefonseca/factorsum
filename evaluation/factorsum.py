@@ -1,12 +1,9 @@
-import os
 import itertools
-import time
 import logging
 
 import fire
-from rich.logging import RichHandler
 
-from .utils import get_targets, get_output_path, load_eval_data
+from .utils import get_targets, get_output_path, load_eval_data, config_logging
 from .evaluation import evaluate_sampled
 from factorsum.config import model_params
 
@@ -213,11 +210,14 @@ def evaluate(
     min_words_per_view=None,
     method="factorsum",
     cache_dir=None,
-    save_dir="output/factorsum",
+    save_dir="output",
     seed=17,
 ):
 
-    timestr = time.strftime("%Y%m%d-%H%M%S")
+    timestr = config_logging(
+        dataset_name, split, save_dir, training_domain=training_domain
+    )
+
     params = model_params(
         dataset_name,
         source_token_budget=source_token_budget,
@@ -270,8 +270,4 @@ def evaluate(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=os.environ.get("LOG_LEVEL", "INFO"), handlers=[RichHandler()]
-    )
-    logging.getLogger("absl").setLevel(logging.WARNING)
     fire.Fire(evaluate)

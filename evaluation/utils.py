@@ -1,9 +1,11 @@
 import os
 import textwrap
 import logging
+import time
 
 import nltk
 import numpy as np
+from rich.logging import RichHandler
 
 from factorsum.data import load_dataset, load_summary_views, load_summaries
 from factorsum.model import get_source_guidance
@@ -95,6 +97,49 @@ def get_output_path(
         save_to = f"{dataset}-{split}-{suffix}.csv"
         save_to = os.path.join(save_dir, save_to)
     return save_to
+
+
+def get_log_path(
+    log_dir,
+    dataset,
+    split,
+    training_domain=None,
+    timestr=None,
+    custom_suffix=None,
+):
+    if log_dir:
+        log_path = f"{dataset}-{split}"
+        if training_domain:
+            log_path = f"{log_path}-{training_domain}"
+        if timestr:
+            log_path = f"{log_path}_{timestr}"
+        if custom_suffix:
+            log_path = f"{log_path}-{custom_suffix}.txt"
+        else:
+            log_path = f"{log_path}.txt"
+        log_path = os.path.join(log_dir, log_path)
+    return log_path
+
+
+def config_logging(dataset_name, split, save_dir, training_domain=None):
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    log_path = get_log_path(
+        save_dir,
+        dataset_name,
+        split,
+        training_domain=training_domain,
+        timestr=timestr,
+    )
+    handlers = [RichHandler()]
+    if log_path:
+        os.makedirs(save_dir, exist_ok=True)
+        handlers.append(logging.FileHandler(log_path, mode="w"))
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO"),
+        handlers=handlers,
+    )
+    logging.getLogger("absl").setLevel(logging.WARNING)
+    return timestr
 
 
 def _load_eval_data(
