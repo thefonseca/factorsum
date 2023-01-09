@@ -10,6 +10,8 @@ from .utils import load_eval_data
 from .factorsum import eval_with_guidance, default_eval_args
 from factorsum.config import model_params
 
+logger = logging.getLogger(__name__)
+
 
 def evaluate_budgets(eval_fn, start=150, end=300, step=10, title=None):
     scores = {
@@ -22,9 +24,8 @@ def evaluate_budgets(eval_fn, start=150, end=300, step=10, title=None):
 
     for token_budget in tqdm(range(start, end + step, step)):
         if title:
-            print("\n>>", title)
-        print("> token_budget:", token_budget)
-        print()
+            logger.info(title)
+        logger.info(f"token_budget: {token_budget}")
         score = eval_fn(token_budget)
         scores["rouge1_precision"].append(score["rouge"]["rouge1"].mid.precision)
         scores["rouge1_recall"].append(score["rouge"]["rouge1"].mid.recall)
@@ -34,11 +35,11 @@ def evaluate_budgets(eval_fn, start=150, end=300, step=10, title=None):
     for k, v in scores.items():
         # print all values for graphs
         if len(v) > 0:
-            print("\n>", k, "values:")
-            print(v)
+            logger.info(f"\n {k} values:")
+            logger.info(v)
 
-    print("\nbest budget:", budgets[np.argmax(scores["rouge1_fmeasure"])])
-    print("best ROUGE-1 F1 score:", max(scores["rouge1_fmeasure"]))
+    logger.info(f"Best budget: {budgets[np.argmax(scores['rouge1_fmeasure'])]}")
+    logger.info(f"Best ROUGE-1 F1 score: {max(scores['rouge1_fmeasure'])}")
     return scores, budgets
 
 

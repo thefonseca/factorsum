@@ -4,10 +4,13 @@ import time
 import logging
 
 import fire
+from rich.logging import RichHandler
 
 from .utils import get_targets, get_output_path, load_eval_data
 from .evaluation import evaluate_sampled
 from factorsum.config import model_params
+
+logger = logging.getLogger(__name__)
 
 
 def _join_texts(content, eval_data):
@@ -57,7 +60,7 @@ def get_guidance_kwargs(initial_kwargs, eval_data, params, budget_type, content_
     kwargs = initial_kwargs.copy()
 
     if budget_type == "fixed":
-        print(f'token_budget: {params["token_budget"]}')
+        logger.info(f'token_budget: {params["token_budget"]}')
         kwargs["token_budget"] = params["token_budget"]
     elif budget_type and budget_type != "no":
         kwargs["token_budget"] = eval_data.get(f"{budget_type}_summary_lengths")
@@ -66,7 +69,9 @@ def get_guidance_kwargs(initial_kwargs, eval_data, params, budget_type, content_
         "oracle",
         "no",
     ]:  # and budget in ['pegasus', 'bigbird']:
-        print(f"Skipping: {budget_type}_summary_lengths not found in evaluation data")
+        logger.warning(
+            f"Skipping: {budget_type}_summary_lengths not found in evaluation data"
+        )
         return None
 
     if content_type != "no":
@@ -76,7 +81,9 @@ def get_guidance_kwargs(initial_kwargs, eval_data, params, budget_type, content_
         kwargs["text_guidance"] is None or len(kwargs["text_guidance"]) == 0
     )
     if empty_text_guidance and content_type in ["pegasus", "bigbird"]:
-        print(f"Skipping: {content_type}_summaries not found in evaluation data")
+        logger.warning(
+            f"Skipping: {content_type}_summaries not found in evaluation data"
+        )
         return None
 
     kwargs["oracle_budget"] = budget_type == "oracle"
@@ -85,20 +92,20 @@ def get_guidance_kwargs(initial_kwargs, eval_data, params, budget_type, content_
 
     if kwargs.get("token_budget"):
         if budget_adjust is None:
-            print(f"Warning: budget adjustment is not set ({budget_adjust_key})")
-            print(f"Using default value: {budget_adjust_key} = 0")
+            logger.warning(f"Budget adjustment is not set ({budget_adjust_key})")
+            logger.warning(f"Using default adjustment value: {budget_adjust_key} = 0")
             budget_adjust = 0
-        print(f"adjust_budget: {budget_adjust}")
+        logger.info(f"adjust_budget: {budget_adjust}")
         kwargs["adjust_budget"] = budget_adjust
 
     kwargs["content_weight"] = params["content_weight"]
-    print("Content weight:", kwargs["content_weight"])
+    logger.info(f"Content weight: {kwargs['content_weight']}")
 
     return kwargs
 
 
 def get_summary_views(eval_data, summary_type):
-    print("Summary views type:", summary_type)
+    logger.info(f"Summary views type: {summary_type}")
     if summary_type is None or summary_type == "summary_views":
         summary_views = eval_data["summary_views"]
     else:
@@ -112,7 +119,7 @@ def get_summary_views(eval_data, summary_type):
         # summary_views = pd.Series(summary_views)
         # doc_ids = pd.Series(range(len(summary_views)))
 
-    print("Summary views count:", len(summary_views))
+    logger.info(f"Summary views count: {len(summary_views)}")
     return summary_views
 
 
@@ -126,8 +133,11 @@ def eval_with_guidance(
     method="factorsum",
     summary_type=None,
 ):
-    print(">> Summarization method:", method)
-    print(f"> {content_type} content guidance, {budget_type} budget")
+    logger.info(f"Summarization method: {method}")
+    if budget_type:
+        logger.info(f"Budget guidance: {budget_type}")
+    if content_type:
+        logger.info(f"Content guidance: {content_type}")
 
     kwargs = get_guidance_kwargs(
         default_kwargs, eval_data, params, budget_type, content_type
@@ -260,6 +270,8 @@ def evaluate(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO"), handlers=[RichHandler()]
+    )
     logging.getLogger("absl").setLevel(logging.WARNING)
     fire.Fire(evaluate)

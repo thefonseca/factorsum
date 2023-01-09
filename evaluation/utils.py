@@ -29,44 +29,45 @@ def get_targets(data):
 
 
 def log_rouge_scores(scores):
+    info = ["ROUGE scores:"]
+
     for k, v in sorted(scores.items()):
         if hasattr(v, "low"):
-            print("%s-R: %f,%f,%f" % (k, v.low.recall, v.mid.recall, v.high.recall))
-            print(
+            score_info = [
+                "%s-R: %f,%f,%f" % (k, v.low.recall, v.mid.recall, v.high.recall),
                 "%s-P: %f,%f,%f"
-                % (k, v.low.precision, v.mid.precision, v.high.precision)
-            )
-            print(
-                "%s-F: %f,%f,%f\n"
-                % (k, v.low.fmeasure, v.mid.fmeasure, v.high.fmeasure)
-            )
+                % (k, v.low.precision, v.mid.precision, v.high.precision),
+                "%s-F: %f,%f,%f" % (k, v.low.fmeasure, v.mid.fmeasure, v.high.fmeasure),
+            ]
         else:
-            print("%s-R: %f,%f,%f" % (k, v.recall, v.recall, v.recall))
-            print("%s-P: %f,%f,%f" % (k, v.precision, v.precision, v.precision))
-            print("%s-F: %f,%f,%f\n" % (k, v.fmeasure, v.fmeasure, v.fmeasure))
+            score_info = [
+                "%s-R: %f,%f,%f" % (k, v.recall, v.recall, v.recall),
+                "%s-P: %f,%f,%f" % (k, v.precision, v.precision, v.precision),
+                "%s-F: %f,%f,%f" % (k, v.fmeasure, v.fmeasure, v.fmeasure),
+            ]
+        info.append("\n".join(score_info))
+        info.append(" ")
+
+    logger.info("\n".join(info))
 
 
 def log_summary(doc_id, pred, target, score, bad_score, good_score, score_key="rouge1"):
     if bad_score and score[score_key].fmeasure < bad_score:
-        print("\n>> BAD SUMMARY ============")
-        print("> DOC ID:", doc_id)
+        logger.info("BAD SUMMARY ============")
+        logger.info(f"DOC ID: {doc_id}")
         for sent in pred.split("\n"):
-            print(textwrap.fill(f"- {sent}", 80))
-        print()
-        print("> Abstract:")
-        print(textwrap.fill(target, 80))
-        print("\n> Scores:")
+            logger.info(textwrap.fill(f"- {sent}", 80))
+        logger.info("Abstract:")
+        logger.info(textwrap.fill(target, 80))
         log_rouge_scores(score)
 
     if good_score and score[score_key].fmeasure > good_score:
-        print("\n>> GOOD SUMMARY ============")
-        print("> DOC ID:", doc_id)
+        logger.info("GOOD SUMMARY ============")
+        logger.info(f"DOC ID: {doc_id}")
         for sent in pred.split("\n"):
-            print(textwrap.fill(f"- {sent}", 80))
-        print()
-        print("> Abstract:")
-        print(textwrap.fill(target, 80))
-        print("\n> Scores:")
+            logger.info(textwrap.fill(f"- {sent}", 80))
+        logger.info("Abstract:")
+        logger.info(textwrap.fill(target, 80))
         log_rouge_scores(score)
 
 
@@ -167,9 +168,9 @@ def _get_source_guidance(sources, token_budget):
         guidance = get_source_guidance(src, token_budget)
         source_guidance.append(guidance)
 
-    print("Source guidance token budget:", token_budget)
-    print(
-        "Avg sentences in source guidance:", np.mean([len(s) for s in source_guidance])
+    logger.info(f"Source guidance token budget: {token_budget}")
+    logger.info(
+        f"Avg sentences in source guidance: {np.mean([len(s) for s in source_guidance])}"
     )
     return source_guidance
 

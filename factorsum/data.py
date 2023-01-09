@@ -313,8 +313,8 @@ def _views_dataset_split_to_dict(
         if max_samples and len(ds_dict["doc_id"]) == max_samples:
             break
 
-    logger.info("Processed views data rows:", len(ds_dict["doc_id"]))
-    logger.info("Processed views unique doc ids:", max(ds_dict["doc_id"]) + 1)
+    logger.info(f"Processed views data rows: {len(ds_dict['doc_id'])}")
+    logger.info(f"Processed views unique doc ids: {max(ds_dict['doc_id']) + 1}")
     return ds_dict
 
 

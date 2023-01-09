@@ -1,5 +1,6 @@
 import pathlib
 import json
+import logging
 
 import nltk
 import numpy as np
@@ -13,20 +14,23 @@ from factorsum.extrinsic import find_best_summary
 from factorsum.utils import apply_word_limit
 from factorsum.metrics import summarization_metrics
 
+logger = logging.getLogger(__name__)
+
 
 def _print_eval_metrics(results):
-    print("Number of documents:", len(results["sents_per_summary"]))
-    print("Avg sentences per summary:", np.mean(results["sents_per_summary"]))
-    print("Avg tokens per summary:", np.mean(results["tokens_per_summary"]))
-    print("Avg tokens per summary sent:", np.mean(results["tokens_per_summary_sent"]))
-    print("Avg sentences per abstract:", np.mean(results["sents_per_abstract"]))
-    print("Avg tokens per abstract:", np.mean(results["tokens_per_abstract"]))
-    print("Avg tokens per abstract sent:", np.mean(results["tokens_per_abstract_sent"]))
-    print("Avg token difference:", np.mean(results["length_diffs"]))
-    print()
+    info_str = [
+        f"Number of documents: {len(results['sents_per_summary'])}",
+        f"Avg sentences per summary: {np.mean(results['sents_per_summary'])}",
+        f"Avg tokens per summary: {np.mean(results['tokens_per_summary'])}",
+        f"Avg tokens per summary sent: {np.mean(results['tokens_per_summary_sent'])}",
+        f"Avg sentences per abstract: {np.mean(results['sents_per_abstract'])}",
+        f"Avg tokens per abstract: {np.mean(results['tokens_per_abstract'])}",
+        f"Avg tokens per abstract sent: {np.mean(results['tokens_per_abstract_sent'])}",
+        f"Avg token difference: {np.mean(results['length_diffs'])}",
+    ]
 
+    logger.info("\n".join(info_str))
     scores = results["scores"]
-    print("\n> ROUGE scores")
     log_rouge_scores(scores["rouge"])
 
 
@@ -49,7 +53,6 @@ def _aggregate_parallel_results(p_results):
 
 
 def _aggregate_results(results):
-
     if type(results) == list:
         results = _aggregate_parallel_results(results)
 
@@ -58,16 +61,18 @@ def _aggregate_results(results):
     for rouge_score in results["rouge_scores"]:
         aggregator.add_scores(rouge_score)
     scores["rouge"] = aggregator.aggregate()
-
     results["scores"] = scores
     return results
 
 
 def _print_guidance_scores(scores):
+    info = ["Guidances scores:"]
     for key in scores.keys():
         _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
         _scores = ", ".join(_scores)
-        print(f"{key}: {_scores}")
+        info.append(f"{key}: {_scores}")
+    if len(info) > 1:
+        logger.info("\n".join(info))
 
 
 def _aggregate_guidance_scores(scores):
@@ -126,7 +131,7 @@ def eval_job(
         if target is None or str(target) == "nan" or len(target) == 0:
             return
     except:
-        print(target)
+        logger.error(f"Invalid target summary: {target}")
 
     target = apply_word_limit(target, max_target_tokens)
     target_is_list = type(target) == list
@@ -218,9 +223,7 @@ def evaluate(
 
     if guidance_scores:
         guidance_scores = _aggregate_guidance_scores(guidance_scores)
-        print("> Guidances scores:")
         _print_guidance_scores(guidance_scores)
-        print()
         results["scores"]["guidance_scores"] = guidance_scores
 
     if save_preds_to:

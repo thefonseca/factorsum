@@ -4,13 +4,14 @@ import os
 
 import fire
 import nltk
+from rich.logging import RichHandler
 
 from .extrinsic import find_best_summary
 from .config import model_params
 from .data import load_dataset, load_summaries
 from .sampling import get_document_views
 from .metrics import summarization_metrics
-from .utils import load_model
+from .utils import load_model, show_summary
 
 try:
     nltk.data.find("tokenizers/punkt")
@@ -18,6 +19,15 @@ except:
     nltk.download("punkt", quiet=True)
 
 logger = logging.getLogger(__name__)
+
+
+def _print_guidance_scores(scores):
+    info = ["Guidances scores:"]
+    for key in scores.keys():
+        _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
+        _scores = ", ".join(_scores)
+        info.append(f"{key}: {_scores}")
+    logger.info("\n".join(info))
 
 
 def get_source_guidance(source, token_budget, verbose=False):
@@ -30,9 +40,9 @@ def get_source_guidance(source, token_budget, verbose=False):
             break
 
     if verbose:
-        print("Source guidance token budget:", token_budget)
-        print("Tokens in source guidance:", guidance_tokens)
-        print("Sentences in source guidance:", len(source_guidance))
+        logger.info(f"Source guidance token budget: {token_budget}")
+        logger.info(f"Tokens in source guidance: {guidance_tokens}")
+        logger.info(f"Sentences in source guidance: {len(source_guidance)}")
     return source_guidance
 
 
@@ -142,9 +152,11 @@ def summarize(
     if target:
         n_words = sum([len(nltk.word_tokenize(sent)) for sent in target])
 
-        print(f"> Reference summary: ({n_words} words)\n")
-        for sent in target:
-            print(textwrap.fill(f"  - {sent}", 80))
+        logger.info(f"Reference summary: ({n_words} words)")
+        # for sent in target:
+        #     info.append(textwrap.fill(f"  - {sent}", 80))
+        # logger.info("\n".join(info))
+        show_summary(target)
 
     if content_guidance_type is None:
         content_guidance_type = "no"
@@ -162,15 +174,12 @@ def summarize(
     else:
         source_token_budget = None
 
-    setup_desc = f">> Generating summary"
+    logger.info("Generating summary")
     if target_budget:
-        setup_desc += f"\n> budget guidance: {target_budget}"
+        logger.info(f"Budget guidance: {target_budget}")
     if content_guidance_type:
-        setup_desc += f"\n> content guidance: {content_guidance_type}"
-        setup_desc += f"\n> source token budget: {source_token_budget}"
-
-    print()
-    print(setup_desc)
+        logger.info(f"Content guidance: {content_guidance_type}")
+        logger.info(f"Source token budget: {source_token_budget}")
 
     summary, guidance_scores = model.summarize(
         source,
@@ -183,10 +192,10 @@ def summarize(
         min_words_per_view=params["min_words_per_view"],
         verbose=True,
     )
-    print("> Summary words:", sum([len(nltk.word_tokenize(sent)) for sent in summary]))
-    print("> Guidance scores:")
-    for key, score in guidance_scores.items():
-        print(f"{key}: {score:.3f}")
+    logger.info(
+        f"Summary words: {sum([len(nltk.word_tokenize(sent)) for sent in summary])}"
+    )
+    _print_guidance_scores(guidance_scores)
     _ = summarization_metrics(summary, target_summary=target, verbose=True)
 
     return summary
@@ -256,6 +265,8 @@ def run(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO"), handlers=[RichHandler()]
+    )
     logging.getLogger("absl").setLevel(logging.WARNING)
     fire.Fire(run)

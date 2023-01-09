@@ -1,9 +1,13 @@
+import logging
+
 import fire
 
 from factorsum.data import load_dataset, load_summaries
 from factorsum.config import model_params
 from .evaluation import evaluate
 from .utils import get_sources, get_targets
+
+logger = logging.getLogger(__name__)
 
 
 def evaluate_baseline(
@@ -28,7 +32,7 @@ def evaluate_baseline(
     if training_domain is None:
         training_domain = dataset_name
 
-    print(">> Reference summary (sanity check)")
+    logger.info("Reference summary (sanity check)")
 
     evaluate(
         targets,
@@ -39,7 +43,7 @@ def evaluate_baseline(
     )
 
     for baseline in ["pegasus", "bigbird-pegasus-large", "bart-base", "bart-large"]:
-        print(f">> {baseline}")
+        logger.info(f"Baseline: {baseline}")
         preds = load_summaries(
             dataset_name,
             split,

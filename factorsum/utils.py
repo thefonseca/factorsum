@@ -18,6 +18,7 @@ from transformers import (
     pipeline,
 )
 import torch
+from rich.text import Text
 
 from .config import model_params
 
@@ -200,11 +201,13 @@ def sent_tokenize_views(views, summary=None, min_words=5):
 
 
 def show_summary(summary):
+    info = [" ", " "]
     if type(summary) == list:
         for sent in summary:
-            print(textwrap.fill(f"- {sent}", 80))
+            info.append(textwrap.fill(f"  - {sent}", 80))
     else:
-        print(summary)
+        info.append(summary)
+    logger.info("\n".join(info) + "\n", extra={"markup": True})
 
 
 def download_models(training_domain=None, model_dir="artifacts"):

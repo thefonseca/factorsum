@@ -1,3 +1,5 @@
+import logging
+
 import nltk
 from summa import summarizer
 import numpy as np
@@ -7,6 +9,7 @@ from .guidance import ROUGEContentGuidance
 from .utils import apply_word_limit, show_summary, sent_tokenize_views
 from .oracle import get_oracles
 
+logger = logging.getLogger(__name__)
 try:
     nltk.data.find("tokenizers/punkt")
 except:
@@ -16,7 +19,7 @@ except:
 def _get_valid_views(views, min_words=5):
     n_ignored = sum([p is None for p in views])
     if n_ignored > 0:
-        print(f"Ignoring {n_ignored} predicted summary")
+        logger.info(f"Ignoring {n_ignored} predicted summary")
         views = [p for p in views if p is not None]
 
     _views = []
@@ -174,12 +177,12 @@ def _greedy_summary(
         # _summary, score, deltas = _add_best_view_fast(
         #     summary, views, guidance, constraints, best_score, deltas
         # )
-        # print(score, best_score)
+        # logger.info(score, best_score)
 
         _summary, score = _add_best_view(
             summary, views, guidance, constraints, best_score
         )
-        # print(best_score, score)
+        # logger.info(best_score, score)
 
         if _summary is None or len(summary) == len(_summary):
             break
@@ -297,7 +300,6 @@ def find_best_summary(
         guidance_scores = {g.__class__.__name__: g.score(summary) for g in guidance}
 
     if verbose:
-        print()
         show_summary(summary)
 
     return summary, guidance_scores

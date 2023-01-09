@@ -1,5 +1,9 @@
+import logging
+
 from rouge_score import rouge_scorer
 import nltk
+
+logger = logging.getLogger(__name__)
 
 try:
     nltk.data.find("tokenizers/punkt")
@@ -8,21 +12,26 @@ except:
 
 
 def log_rouge_scores(scores):
+    info = ["ROUGE scores:"]
+
     for k, v in sorted(scores.items()):
         if hasattr(v, "low"):
-            print("%s-R: %f,%f,%f" % (k, v.low.recall, v.mid.recall, v.high.recall))
-            print(
+            score_info = [
+                "%s-R: %f,%f,%f" % (k, v.low.recall, v.mid.recall, v.high.recall),
                 "%s-P: %f,%f,%f"
-                % (k, v.low.precision, v.mid.precision, v.high.precision)
-            )
-            print(
-                "%s-F: %f,%f,%f\n"
-                % (k, v.low.fmeasure, v.mid.fmeasure, v.high.fmeasure)
-            )
+                % (k, v.low.precision, v.mid.precision, v.high.precision),
+                "%s-F: %f,%f,%f" % (k, v.low.fmeasure, v.mid.fmeasure, v.high.fmeasure),
+            ]
         else:
-            print("%s-R: %f,%f,%f" % (k, v.recall, v.recall, v.recall))
-            print("%s-P: %f,%f,%f" % (k, v.precision, v.precision, v.precision))
-            print("%s-F: %f,%f,%f\n" % (k, v.fmeasure, v.fmeasure, v.fmeasure))
+            score_info = [
+                "%s-R: %f,%f,%f" % (k, v.recall, v.recall, v.recall),
+                "%s-P: %f,%f,%f" % (k, v.precision, v.precision, v.precision),
+                "%s-F: %f,%f,%f" % (k, v.fmeasure, v.fmeasure, v.fmeasure),
+            ]
+        info.append("\n".join(score_info))
+        info.append(" ")
+
+    logger.info("\n".join(info))
 
 
 def rouge_score(summary, target_summary, rouge_ngrams=None):
@@ -50,7 +59,6 @@ def rouge_score(summary, target_summary, rouge_ngrams=None):
 
 def show_metrics(metrics):
     if "rouge" in metrics:
-        print("\n> ROUGE scores:")
         log_rouge_scores(metrics["rouge"])
 
 
