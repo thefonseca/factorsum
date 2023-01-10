@@ -24,8 +24,11 @@ logger = logging.getLogger(__name__)
 def _print_guidance_scores(scores):
     info = ["Guidances scores:"]
     for key in scores.keys():
-        _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
-        _scores = ", ".join(_scores)
+        if type(scores[key]) == dict:
+            _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
+            _scores = ", ".join(_scores)
+        else:
+            _scores = f"{scores[key]:.3f}"
         info.append(f"{key}: {_scores}")
     logger.info("\n".join(info))
 
@@ -153,9 +156,6 @@ def summarize(
         n_words = sum([len(nltk.word_tokenize(sent)) for sent in target])
 
         logger.info(f"Reference summary: ({n_words} words)")
-        # for sent in target:
-        #     info.append(textwrap.fill(f"  - {sent}", 80))
-        # logger.info("\n".join(info))
         show_summary(target)
 
     if content_guidance_type is None:
@@ -195,7 +195,8 @@ def summarize(
     logger.info(
         f"Summary words: {sum([len(nltk.word_tokenize(sent)) for sent in summary])}"
     )
-    _print_guidance_scores(guidance_scores)
+    if guidance_scores:
+        _print_guidance_scores(guidance_scores)
     _ = summarization_metrics(summary, target_summary=target, verbose=True)
 
     return summary

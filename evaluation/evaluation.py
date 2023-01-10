@@ -68,11 +68,13 @@ def _aggregate_results(results):
 def _print_guidance_scores(scores):
     info = ["Guidances scores:"]
     for key in scores.keys():
-        _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
-        _scores = ", ".join(_scores)
+        if type(scores[key]) == dict:
+            _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
+            _scores = ", ".join(_scores)
+        else:
+            _scores = f"{scores[key]:.3f}"
         info.append(f"{key}: {_scores}")
-    if len(info) > 1:
-        logger.info("\n".join(info))
+    logger.info("\n".join(info))
 
 
 def _aggregate_guidance_scores(scores):
