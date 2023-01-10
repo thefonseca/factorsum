@@ -105,23 +105,32 @@ def get_log_path(
     split,
     training_domain=None,
     timestr=None,
-    custom_suffix=None,
+    prefix=None,
+    suffix=None,
 ):
     if log_dir:
-        log_path = f"{dataset}-{split}"
+        if prefix:
+            log_path = f"{prefix}-{dataset}-{split}"
+        else:
+            log_path = f"{dataset}-{split}"
+
         if training_domain:
             log_path = f"{log_path}-{training_domain}"
         if timestr:
             log_path = f"{log_path}_{timestr}"
-        if custom_suffix:
-            log_path = f"{log_path}-{custom_suffix}.txt"
+
+        if suffix:
+            log_path = f"{log_path}-{suffix}.txt"
         else:
             log_path = f"{log_path}.txt"
+
         log_path = os.path.join(log_dir, log_path)
     return log_path
 
 
-def config_logging(dataset_name, split, save_dir, training_domain=None):
+def config_logging(
+    dataset_name, split, save_dir, training_domain=None, prefix="factorsum"
+):
     timestr = time.strftime("%Y%m%d-%H%M%S")
     log_path = get_log_path(
         save_dir,
@@ -129,6 +138,7 @@ def config_logging(dataset_name, split, save_dir, training_domain=None):
         split,
         training_domain=training_domain,
         timestr=timestr,
+        prefix=prefix,
     )
     handlers = [RichHandler()]
     if log_path:
