@@ -89,12 +89,13 @@ def get_output_path(
         suffix = f"{suffix}-{custom_suffix}"
 
     if save_dir:
-        save_dir = f"{save_dir}-{dataset}-{split}"
+        save_to = f"{dataset}-{split}"
         if training_domain:
-            save_dir = f"{save_dir}-{training_domain}"
+            save_to = f"{save_to}-{training_domain}"
         if timestr:
-            save_dir = f"{save_dir}_{timestr}"
-        save_to = f"{dataset}-{split}-{suffix}.csv"
+            save_to = f"{save_to}_{timestr}"
+
+        save_to = f"{save_to}-{suffix}.csv"
         save_to = os.path.join(save_dir, save_to)
     return save_to
 
