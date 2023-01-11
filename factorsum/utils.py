@@ -29,7 +29,8 @@ try:
 except:
     nltk.download("punkt", quiet=True)
 
-start_with_non_alpha_pattern = re.compile("^[^\w_\s]+\s")
+start_with_non_alpha_pattern = re.compile("^(_|[^\w\@])*\s")
+end_with_non_alpha_pattern = re.compile("\s(_|[^\w\@])*$")
 
 
 def download_wandb_model(project, model_name):
@@ -170,10 +171,9 @@ def apply_word_limit(text, max_words, return_list=False):
 
 def clean_summary_view(sent):
     sent = start_with_non_alpha_pattern.sub("", sent)
-    sent = sent.replace(" .", ".")
-    sent = sent.replace(". ", ".")
-    sent = sent.replace("\n", "")
-    # sent = re.sub(" \.$", ".", sent)
+    sent = end_with_non_alpha_pattern.sub("", sent)
+    sent = sent.replace("\n", " ")
+    sent = sent.strip()
     return sent
 
 

@@ -124,6 +124,8 @@ def eval_job(
 
     if type(pred) == list:
         pred_sents = pred
+    elif "\n" in pred:
+        pred_sents = pred.split("\n")
     else:
         pred_sents = nltk.sent_tokenize(pred)
 
