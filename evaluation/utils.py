@@ -84,19 +84,21 @@ def get_output_path(
     custom_suffix=None,
 ):
     save_to = None
-    suffix = f"{content}_content-{budget}_budget"
-    if custom_suffix:
-        suffix = f"{suffix}-{custom_suffix}"
 
     if save_dir:
-        save_to = f"{dataset}-{split}"
-        if training_domain:
-            save_to = f"{save_to}-{training_domain}"
-        if timestr:
-            save_to = f"{save_to}_{timestr}"
+        suffix = f"{content}_content-{budget}_budget"
+        if custom_suffix:
+            suffix = f"{suffix}-{custom_suffix}"
 
-        save_to = f"{save_to}-{suffix}.csv"
-        save_to = os.path.join(save_dir, save_to)
+        save_subdir = f"{dataset}-{split}"
+        if training_domain:
+            save_subdir = f"{save_subdir}-{training_domain}"
+        if timestr:
+            save_subdir = f"{save_subdir}_{timestr}"
+
+        save_to = f"{suffix}.csv"
+        save_to = os.path.join(save_dir, save_subdir, save_to)
+
     return save_to
 
 
