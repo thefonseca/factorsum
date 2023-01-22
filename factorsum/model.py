@@ -145,6 +145,7 @@ def summarize(
     content_guidance_type=None,
     target_content=None,
     custom_guidance=None,
+    sent_tokenize_fn=None,
 ):
 
     if target:
@@ -185,6 +186,7 @@ def summarize(
         sample_factor=params["sample_factor"],
         views_per_doc=params["views_per_doc"],
         min_words_per_view=params["min_words_per_view"],
+        sent_tokenize_fn=sent_tokenize_fn,
         verbose=True,
     )
     logger.info(
