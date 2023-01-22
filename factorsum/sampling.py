@@ -10,15 +10,15 @@ def show_sampling_metrics(metrics):
     print("Average sentences per document:", metrics["avg_sents_per_document"])
     print(
         "Average abstract sentences per document:",
-        metrics["avg_abstract_sents_per_document"],
+        metrics["avg_target_sents_per_document"],
     )
     print(
         "Average abstract words per document:",
-        metrics["avg_abstract_words_per_document"],
+        metrics["avg_target_words_per_document"],
     )
-    print("Average document coverage:", metrics["document_coverage"])
+    print("Average document coverage:", metrics["source_coverage"])
     print("Average sentences per sample:")
-    for sample_idx, avg_sents in enumerate(metrics["avg_sents_per_sample"]):
+    for sample_idx, avg_sents in enumerate(metrics["avg_sents_per_document"]):
         print(f"- sample {sample_idx}:", avg_sents)
 
     all_oracle_pos = metrics["all_oracle_pos"]
@@ -32,26 +32,24 @@ def show_sampling_metrics(metrics):
     plt.ylabel("count")
     plt.show()
 
-    all_oracle_pos_in_sample = metrics["all_oracle_pos_in_sample"]
-    print(
-        "\nAverage oracle position (inside sample):", np.mean(all_oracle_pos_in_sample)
-    )
-    print("Oracle position std (inside sample):", np.std(all_oracle_pos_in_sample))
+    all_oracle_pos_in_sample = metrics["all_oracle_pos_in_view"]
+    print("\nAverage oracle position (inside view):", np.mean(all_oracle_pos_in_sample))
+    print("Oracle position std (inside view):", np.std(all_oracle_pos_in_sample))
     plt.figure(figsize=(12, 6))
     plt.xlim([min(all_oracle_pos_in_sample), max(all_oracle_pos_in_sample)])
     plt.hist(all_oracle_pos_in_sample, bins=20, alpha=0.5)
-    plt.title("Oracle position inside sample")
+    plt.title("Oracle position inside view")
     plt.xlabel("position")
     plt.ylabel("count")
     plt.show()
 
     oracle_freqs = metrics["oracle_freqs"]
-    print("\nAverage oracle frequency per sample:", np.mean(oracle_freqs))
-    print("Oracle frequency std per sample:", np.std(oracle_freqs))
+    print("\nAverage oracle frequency per view:", np.mean(oracle_freqs))
+    print("Oracle frequency std per view:", np.std(oracle_freqs))
     plt.figure(figsize=(12, 6))
     plt.xlim([min(oracle_freqs), max(oracle_freqs)])
     plt.hist(oracle_freqs, alpha=0.5)
-    plt.title("Oracle sentences per sample")
+    plt.title("Oracle sentences per view")
     plt.xlabel("number of oracle sentences")
     plt.ylabel("count")
     plt.show()
