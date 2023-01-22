@@ -1,31 +1,10 @@
 import logging
 
-import nltk
 import textdistance
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
 logger = logging.getLogger(__name__)
-
-try:
-    nltk.data.find("tokenizers/punkt")
-except:
-    nltk.download("punkt", quiet=True)
-
-
-def has_repeated_trigram(text, trigrams):
-    words = nltk.word_tokenize(text)
-    sample_trigrams = nltk.trigrams(words)
-    try:
-        sample_trigrams = list(sample_trigrams)
-        if any([(t in trigrams) for t in sample_trigrams]):
-            return True
-        trigrams.extend(sample_trigrams)
-        return False
-    except RuntimeError:
-        logger.error("Failed to get trigrams")
-        logger.error(f"Words: {words}")
-        logger.error(f"Text: {text}")
 
 
 def has_similar_content(text, sentences, threshold=0.4, max_tokens=30):

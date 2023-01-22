@@ -5,19 +5,13 @@ from pathlib import Path
 
 import datasets
 from tqdm import tqdm
-import nltk
 import pandas as pd
 import fire
 
-from factorsum.utils import download_resource
+from .utils import download_resource, sent_tokenize
 from .oracle import get_oracles
 from .sampling import sample_dataset
 from .config import model_params
-
-try:
-    nltk.data.find("tokenizers/punkt")
-except:
-    nltk.download("punkt", quiet=True)
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +49,7 @@ def _preprocess(
         sents = []
 
         for par in paragraphs:
-            par_sents = nltk.sent_tokenize(par)
-            par_sents = [s.strip() for s in par_sents]
+            par_sents = sent_tokenize(par)
             sents.extend(par_sents)
         return sents
 

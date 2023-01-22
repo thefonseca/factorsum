@@ -6,7 +6,7 @@ import numpy as np
 
 from .constraints import SummaryViewConstraint, BudgetConstraint, RedundancyConstraint
 from .guidance import ROUGEContentGuidance
-from .utils import apply_word_limit, show_summary, sent_tokenize_views
+from .utils import apply_word_limit, show_summary, sent_tokenize, sent_tokenize_views
 from .oracle import get_oracles
 
 logger = logging.getLogger(__name__)
@@ -36,10 +36,14 @@ def _get_valid_views(views, min_words=5):
     return _views
 
 
-def _preprocess_summary_views(views, min_words_per_view):
+def _preprocess_summary_views(views, min_words_per_view, sent_tokenize_fn):
     views = _get_valid_views(views, min_words=min_words_per_view)
     # sent tokenize all preds to get more fine-grained information
-    views = sent_tokenize_views(views, min_words=min_words_per_view)
+    if sent_tokenize_fn is None:
+        sent_tokenize_fn = sent_tokenize
+    views = sent_tokenize_views(
+        views, min_words=min_words_per_view, sent_tokenize_fn=sent_tokenize_fn
+    )
     return views
 
 
@@ -64,7 +68,7 @@ def _get_oracle_idxs(source_sents, target_sents):
 
 def _reorder_sentences(summary, target_content):
     _target_content = target_content.replace("<n>", "")
-    _target_content = nltk.sent_tokenize(_target_content)
+    _target_content = sent_tokenize(_target_content)
     oracle_idxs = _get_oracle_idxs(_target_content, summary)
     summary = [x for _, x in sorted(zip(oracle_idxs, summary))]
     return summary
@@ -259,6 +263,7 @@ def find_best_summary(
     verbose=False,
     method="factorsum",
     min_words_per_view=5,
+    sent_tokenize_fn=None,
 ):
     summary = []
 
@@ -280,7 +285,9 @@ def find_best_summary(
     constraints = _get_constraints(
         target_budget=target_budget, custom_constraints=custom_constraints
     )
-    summary_views = _preprocess_summary_views(summary_views, min_words_per_view)
+    summary_views = _preprocess_summary_views(
+        summary_views, min_words_per_view, sent_tokenize_fn
+    )
 
     if method == "factorsum":
         summary = _greedy_summary(summary_views, guidance, constraints)

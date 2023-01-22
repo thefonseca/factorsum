@@ -11,7 +11,7 @@ from .config import model_params
 from .data import load_dataset, load_summaries
 from .sampling import get_document_views
 from .metrics import summarization_metrics
-from .utils import load_model, show_summary
+from .utils import load_model, show_summary, sent_tokenize
 
 try:
     nltk.data.find("tokenizers/punkt")
@@ -49,15 +49,6 @@ def get_source_guidance(source, token_budget, verbose=False):
     return source_guidance
 
 
-def sent_tokenize(text):
-    if type(text) == str:
-        sents = nltk.sent_tokenize(text)
-    else:
-        sents = [s for x in text for s in nltk.sent_tokenize(x)]
-    sents = [x.replace("\n", "") for x in sents if x != "\n"]
-    return sents
-
-
 class FactorSum:
     def __init__(self, model_name_or_path):
         super().__init__()
@@ -88,10 +79,14 @@ class FactorSum:
         sample_factor=5,
         views_per_doc=20,
         min_words_per_view=5,
+        sent_tokenize_fn=None,
         verbose=False,
         seed=17,
     ):
-        source_sents = sent_tokenize(source)
+        if sent_tokenize_fn is None:
+            sent_tokenize_fn = sent_tokenize
+        source_sents = sent_tokenize_fn(source, min_words=min_words_per_view)
+
         doc_views = get_document_views(
             source_sents,
             sample_factor=sample_factor,
@@ -108,6 +103,7 @@ class FactorSum:
             target_content=target_content,
             custom_guidance=custom_guidance,
             min_words_per_view=min_words_per_view,
+            sent_tokenize_fn=sent_tokenize_fn,
             verbose=verbose,
         )
 

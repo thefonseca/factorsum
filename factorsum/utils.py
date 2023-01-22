@@ -18,7 +18,6 @@ from transformers import (
     pipeline,
 )
 import torch
-from rich.text import Text
 
 from .config import model_params
 
@@ -146,7 +145,7 @@ def apply_word_limit(text, max_words, return_list=False):
         sents = text
     else:
         # nltk.word_tokenize drops \n information, so we need to do this sentence by sentence
-        sents = nltk.sent_tokenize(text)
+        sents = sent_tokenize(text)
 
     truncated_sents = []
     total_words = 0
@@ -169,34 +168,92 @@ def apply_word_limit(text, max_words, return_list=False):
     return "\n".join(truncated_sents)
 
 
-def clean_summary_view(sent):
+def clean_sentence(sent):
     sent = start_with_non_alpha_pattern.sub("", sent)
-    sent = end_with_non_alpha_pattern.sub("", sent)
+    # sent = end_with_non_alpha_pattern.sub(r"", sent)
     sent = sent.replace("\n", " ")
     sent = sent.strip()
     return sent
 
 
-def sent_tokenize_views(views, summary=None, min_words=5):
+def fix_sent_tokenization(sents, min_words):
+    """
+    Apply heuristics to improve quality of sentence tokenization.
+    Re-merge sentences resulting from common tokenization errors found empirically.
+    """
+
+    invalid_sents = [len(sent.split()) < min_words for sent in sents]
+    # jj = 0
+    while len(sents) > 1 and any(invalid_sents):
+        new_sents = [sents[0]]
+        mergeable = [False]
+
+        for ii, sent in enumerate(sents[1:]):
+            previous_sent = new_sents[-1].strip()
+
+            prev_ends_with_ie = re.match(r".*i\s*\.\s*e\.$", previous_sent)
+            prev_is_short_sentence = len(previous_sent.split()) < min_words
+            is_short_sentence = len(sent.split()) < min_words
+            start_with_non_alpha = re.match(r"^([^\w]|\d)+.*", sent.strip())
+
+            must_merge = (
+                prev_ends_with_ie
+                or prev_is_short_sentence
+                or is_short_sentence
+                or start_with_non_alpha
+            )
+            mergeable.append(must_merge)
+
+            if must_merge:
+                new_sents[-1] = " ".join([previous_sent, sent])
+            else:
+                new_sents.append(sent)
+
+        sents = new_sents
+
+        # if debug:
+        #     invalid_sents = [len(sent.split()) < min_words for sent in sents]
+        #     # print(invalid_sents)
+        #     # rich.print(sents)
+        #     for ii in range(len(invalid_sents)):
+        #         if invalid_sents[ii]:
+        #             rich.print(ii-1, sents[ii-1])
+        #             rich.print(ii, sents[ii])
+
+        #     jj += 1
+        #     if jj > 10:
+        #         break
+
+        invalid_sents = [
+            len(sent.split()) < min_words and mergeable[ii]
+            for ii, sent in enumerate(sents)
+        ]
+
+    return sents
+
+
+def sent_tokenize(text, min_words=5):
+    if type(text) == str:
+        sents = nltk.sent_tokenize(text)
+    else:
+        sents = [s for x in text for s in nltk.sent_tokenize(x)]
+    sents = fix_sent_tokenization(sents, min_words=min_words)
+    sents = [clean_sentence(x) for x in sents if x != "\n"]
+    return sents
+
+
+def sent_tokenize_views(views, min_words=5, sent_tokenize_fn=None):
     sents = []
 
-    for view in views:
-        if summary is not None and view in summary:
-            continue
+    if sent_tokenize_fn is None:
+        sent_tokenize_fn = sent_tokenize
 
+    for view in views:
         # try to put spaces after period to improve sentence tokenization
         view = re.sub(r"\.([\D]{2})", r" . \1", view)
-        view_sents = nltk.sent_tokenize(view)
-        for sent in view_sents:
-            # avoid tokenization if any of the sentences is too short
-            sent = clean_summary_view(sent)
-            if len(sent.split()) < min_words:
-                view_sents = [view]
-                break
-
+        view_sents = sent_tokenize_fn(view, min_words=min_words)
         sents.extend(view_sents)
 
-    sents = [clean_summary_view(s) for s in sents]
     return sents
 
 

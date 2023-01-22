@@ -1,14 +1,8 @@
 import logging
 
 from rouge_score import rouge_scorer
-import nltk
 
 logger = logging.getLogger(__name__)
-
-try:
-    nltk.data.find("tokenizers/punkt")
-except:
-    nltk.download("punkt", quiet=True)
 
 
 def log_rouge_scores(scores):
