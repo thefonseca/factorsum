@@ -45,7 +45,7 @@ def _get_params():
         "dataset_url"
     ] = "https://www.dropbox.com/s/tzlcptrgwu41un8/factorsum-arxiv.zip?dl=1"
     params["arxiv"]["token_budget"] = 165
-    params["arxiv"]["source_token_budget"] = 200
+    params["arxiv"]["source_token_budget"] = 165
     params["arxiv"]["no_content_fixed_budget_adjust"] = 2
     params["arxiv"]["no_content_oracle_budget_adjust"] = 4
     params["arxiv"]["no_content_pegasus_budget_adjust"] = 6

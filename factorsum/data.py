@@ -2,6 +2,7 @@ import os
 import pickle
 import logging
 from pathlib import Path
+from functools import lru_cache
 
 import datasets
 from tqdm import tqdm
@@ -401,6 +402,7 @@ def _maybe_fix_predictions(preds, expected_length, invalid_samples=None):
     return preds
 
 
+@lru_cache(maxsize=3)
 def load_summaries(
     dataset_name,
     split,

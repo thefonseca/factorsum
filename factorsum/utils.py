@@ -257,6 +257,13 @@ def sent_tokenize_views(views, min_words=5, sent_tokenize_fn=None):
     return sents
 
 
+def word_tokenize(text):
+    if isinstance(text, list):
+        text = " ".join(text)
+    words = nltk.word_tokenize(text)
+    return words
+
+
 def show_summary(summary):
     info = [" ", " "]
     if type(summary) == list:
