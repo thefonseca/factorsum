@@ -6,6 +6,7 @@ import time
 import nltk
 import numpy as np
 from rich.logging import RichHandler
+from rich.progress import Progress, MofNCompleteColumn, SpinnerColumn
 
 from factorsum.data import load_dataset, load_summary_views, load_summaries
 from factorsum.model import get_source_guidance
@@ -16,6 +17,14 @@ except:
     nltk.download("punkt", quiet=True)
 
 logger = logging.getLogger(__name__)
+
+
+def get_progress_bar():
+    return Progress(
+        SpinnerColumn(),
+        *Progress.get_default_columns(),
+        MofNCompleteColumn(),
+    )
 
 
 def get_sources(data):
@@ -128,7 +137,7 @@ def get_log_path(
             log_path = f"{log_path}.txt"
 
         log_path = os.path.join(log_dir, log_path)
-    return log_path
+        return log_path
 
 
 def config_logging(
