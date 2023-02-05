@@ -66,6 +66,9 @@ def _aggregate_results(results):
 
 
 def _print_guidance_scores(scores):
+    if len(scores) == 0:
+        return
+
     info = ["Guidances scores:"]
     for key in scores.keys():
         if type(scores[key]) == dict:
@@ -78,6 +81,11 @@ def _print_guidance_scores(scores):
 
 
 def _aggregate_guidance_scores(scores):
+    if len(scores) == 1:
+        return scores[0]
+    elif len(scores) == 0:
+        return {}
+
     agg_scores = {}
 
     for score in scores:
