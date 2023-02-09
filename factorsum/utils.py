@@ -11,15 +11,17 @@ import wandb
 import fire
 import nltk
 import gdown
+from optimum.bettertransformer import BetterTransformer
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     pipeline,
 )
+
 import torch
 
-from .config import model_params
+from .config import model_params, default_params
 
 logger = logging.getLogger(__name__)
 
@@ -85,26 +87,69 @@ def get_model_path(model_type, model_id, model_dir="artifacts"):
     return model_path
 
 
-def _download_model(
-    training_domain, model_dir, model_type="intrinsic_importance", params=None
-):
-    if params is None:
+def get_model_info(model_type, training_domain=None, params=None):
+    if params is None and training_domain:
         params = model_params(training_domain)
+    elif params is None:
+        params = default_params()
 
     model_id = params[f"{model_type}_model_id"]
+    model_url = params[f"{model_type}_model_url"]
+    return model_id, model_url
+
+
+def _download_model(
+    training_domain=None,
+    model_dir="artifacts",
+    model_type="intrinsic_importance",
+    params=None,
+):
+    model_id, model_url = get_model_info(
+        model_type, training_domain=training_domain, params=params
+    )
     model_path = get_model_path(model_type, model_id, model_dir)
 
-    download_resource(params[f"{model_type}_model_url"], f"{model_path}.zip")
+    download_resource(model_url, f"{model_path}.zip")
     return model_path
 
 
+def load_hf_model(model_path, model_type, pipeline_type=None, use_bettertransformer=True, params=None):
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
+
+    model_type = model_type.replace("-", "_")
+
+    if pipeline_type is None and params:
+        pipeline_type = params.get(f"{model_type}_pipeline_type", "summarization")
+
+    if pipeline_type is None and model_type == "intrinsic_importance":
+        pipeline_type = "summarization"
+
+    if pipeline_type == "text-classification":
+        model = AutoModelForSequenceClassification.from_pretrained(model_path)
+    else:
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
+
+    if use_bettertransformer:
+        model = BetterTransformer.transform(model, keep_original_model=True)
+
+    try:
+        device = torch.cuda.current_device()
+    except:
+        device = None
+
+    pipe = pipeline(pipeline_type, model=model, tokenizer=tokenizer, device=device)
+    return pipe
+
+
 def load_model(
-    model_domain_or_path,
+    model_domain_or_path=None,
     model_type="intrinsic_importance",
+    pipeline_type=None,
     model_dir="artifacts",
     params=None,
 ):
-    if Path(model_domain_or_path).exists():
+    if model_domain_or_path and Path(model_domain_or_path).exists():
         logger.info(f"Model found in path: {model_domain_or_path}")
         model_path = model_domain_or_path
     else:
@@ -113,28 +158,12 @@ def load_model(
         )
 
     logger.info(f"Loading {model_type} model from {model_path}...")
-    tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
 
-    model_type = model_type.replace("-", "_")
-    pipeline_type = "summarization"
-    if params:
-        pipeline_type = params.get(f"{model_type}_pipeline_type", "summarization")
-
-    if pipeline_type == "text-classification":
-        model = AutoModelForSequenceClassification.from_pretrained(model_path)
-    else:
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
-
-    try:
-        device = torch.cuda.current_device()
-    except:
-        device = None
-
-    summarizer = pipeline(
-        pipeline_type, model=model, tokenizer=tokenizer, device=device
+    model = load_hf_model(
+        model_path, model_type, pipeline_type=pipeline_type, params=params
     )
 
-    return summarizer, model_path
+    return model, model_path
 
 
 def apply_word_limit(text, max_words, return_list=False):
@@ -264,7 +293,7 @@ def word_tokenize(text):
     return words
 
 
-def show_summary(summary):
+def log_summary(summary):
     info = [" ", " "]
     if type(summary) == list:
         for sent in summary:
@@ -272,6 +301,33 @@ def show_summary(summary):
     else:
         info.append(summary)
     logger.info("\n".join(info) + "\n", extra={"markup": True})
+
+
+def log_guidance_scores(scores):
+    info = ["Guidances scores:"]
+    for key in scores.keys():
+        if type(scores[key]) == dict:
+            _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
+            _scores = ", ".join(_scores)
+        else:
+            _scores = f"{scores[key]:.3f}"
+        info.append(f"{key}: {_scores}")
+    logger.info("\n".join(info))
+
+
+def log_reference_summary(target, sent_tokenize_fn=None):
+    n_words = sum([len(nltk.word_tokenize(sent)) for sent in target])
+    logger.info(f"Reference summary: ({n_words} words)")
+
+    if type(target) == list:
+        target = "\n".join(target)
+
+    if sent_tokenize_fn:
+        target = sent_tokenize_fn(target)
+    else:
+        target = sent_tokenize(target)
+
+    log_summary(target)
 
 
 def download_models(training_domain=None, model_dir="artifacts"):

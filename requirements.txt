@@ -9,3 +9,5 @@ textdistance==4.5.0
 wandb==0.13.4
 rich==13.0.1
 diskcache==5.4.0
+accelerate==0.16.0
+optimum==1.6.3
