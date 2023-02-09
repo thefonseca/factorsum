@@ -4,47 +4,12 @@ import nltk
 from summa import summarizer
 import numpy as np
 
-from .constraints import SummaryViewConstraint, BudgetConstraint, RedundancyConstraint
-from .guidance import ROUGEContentGuidance
-from .utils import apply_word_limit, show_summary, sent_tokenize, sent_tokenize_views
-from .oracle import get_oracles
 
 logger = logging.getLogger(__name__)
 try:
     nltk.data.find("tokenizers/punkt")
 except:
     nltk.download("punkt", quiet=True)
-
-
-def _get_valid_views(views, min_words=5):
-    n_ignored = sum([p is None for p in views])
-    if n_ignored > 0:
-        logger.info(f"Ignoring {n_ignored} predicted summary")
-        views = [p for p in views if p is not None]
-
-    _views = []
-
-    constraint = SummaryViewConstraint(min_length=min_words)
-
-    for view in views:
-        if not constraint.check(view):
-            continue
-
-        if view not in _views:
-            _views.append(view)
-
-    return _views
-
-
-def _preprocess_summary_views(views, min_words_per_view, sent_tokenize_fn):
-    views = _get_valid_views(views, min_words=min_words_per_view)
-    # sent tokenize all preds to get more fine-grained information
-    if sent_tokenize_fn is None:
-        sent_tokenize_fn = sent_tokenize
-    views = sent_tokenize_views(
-        views, min_words=min_words_per_view, sent_tokenize_fn=sent_tokenize_fn
-    )
-    return views
 
 
 def _candidate_score(candidate_summary, guidance):
@@ -58,20 +23,6 @@ def _candidate_score(candidate_summary, guidance):
             candidate_score += guidance_item.score(candidate_summary)
 
     return candidate_score
-
-
-def _get_oracle_idxs(source_sents, target_sents):
-    oracle_idxs = get_oracles([source_sents], [target_sents], progress_bar=False)[0]
-    oracle_idxs = [x if x is not None else len(oracle_idxs) for x in oracle_idxs]
-    return oracle_idxs
-
-
-def _reorder_sentences(summary, target_content):
-    _target_content = target_content.replace("<n>", "")
-    _target_content = sent_tokenize(_target_content)
-    oracle_idxs = _get_oracle_idxs(_target_content, summary)
-    summary = [x for _, x in sorted(zip(oracle_idxs, summary))]
-    return summary
 
 
 def _add_best_view_fast(summary, views, guidance, constraints, current_score, deltas):
@@ -134,6 +85,10 @@ def _add_best_view_fast(summary, views, guidance, constraints, current_score, de
     return best_summary, best_score, deltas
 
 
+def _check_constraint(constraint, summary, view):
+    return constraint.check(summary, view)
+
+
 def _add_best_view(summary, views, guidance, constraints, current_score):
     best_score = None
     best_delta = None
@@ -145,7 +100,7 @@ def _add_best_view(summary, views, guidance, constraints, current_score):
         if view in summary:
             continue
 
-        if not all([c.check(summary, view) for c in constraints]):
+        if not all([_check_constraint(c, summary, view) for c in constraints]):
             continue
 
         candidate_summary = summary + [view]
@@ -165,7 +120,7 @@ def _add_best_view(summary, views, guidance, constraints, current_score):
     return best_summary, best_score
 
 
-def _greedy_summary(
+def greedy_summary(
     views,
     guidance,
     constraints,
@@ -175,7 +130,7 @@ def _greedy_summary(
     best_summary = []
     attempts = 0
     best_score = None
-    deltas = None
+    # deltas = None
 
     while True:
         # _summary, score, deltas = _add_best_view_fast(
@@ -204,7 +159,7 @@ def _greedy_summary(
     return best_summary
 
 
-def _textrank_summary(views, token_budget):
+def textrank_summary(views, token_budget):
     views = "\n".join(views)
     if len(nltk.word_tokenize(views)) < token_budget:
         summary = views
@@ -213,100 +168,3 @@ def _textrank_summary(views, token_budget):
 
     summary = summary.split("\n")
     return summary
-
-
-def _get_guidance(
-    target_content,
-    content_weight=1.0,
-    content_score_key=None,
-    custom_guidance=None,
-):
-    guidance = []
-    if target_content:
-        guidance.append(
-            ROUGEContentGuidance(
-                target_content, weight=content_weight, score_key=content_score_key
-            )
-        )
-
-    if custom_guidance:
-        if type(custom_guidance) == list:
-            guidance.extend(custom_guidance)
-        else:
-            guidance.append(custom_guidance)
-
-    return guidance
-
-
-def _get_constraints(target_budget=None, custom_constraints=None):
-    constraints = [RedundancyConstraint()]
-
-    if target_budget and target_budget > 0:
-        constraints.append(BudgetConstraint(target_budget))
-
-    if custom_constraints:
-        if type(custom_constraints) == list:
-            constraints.extend(custom_constraints)
-        else:
-            constraints.append(custom_constraints)
-    return constraints
-
-
-def find_best_summary(
-    summary_views,
-    target_budget,
-    strict_budget=False,
-    target_content=None,
-    content_weight=1.0,
-    custom_guidance=None,
-    custom_constraints=None,
-    verbose=False,
-    method="factorsum",
-    min_words_per_view=5,
-    sent_tokenize_fn=None,
-):
-    summary = []
-
-    if target_content is not None:
-        if type(target_content) == list:
-            target_content = "\n".join(target_content)
-
-    if target_budget and target_budget > 0:
-        content_score_key = "recall"
-    else:
-        content_score_key = "fmeasure"
-
-    guidance = _get_guidance(
-        target_content,
-        content_weight=content_weight,
-        content_score_key=content_score_key,
-        custom_guidance=custom_guidance,
-    )
-    constraints = _get_constraints(
-        target_budget=target_budget, custom_constraints=custom_constraints
-    )
-    summary_views = _preprocess_summary_views(
-        summary_views, min_words_per_view, sent_tokenize_fn
-    )
-
-    if method == "factorsum":
-        summary = _greedy_summary(summary_views, guidance, constraints)
-    elif method == "textrank":
-        summary = _textrank_summary(summary_views, target_budget)
-    else:
-        raise ValueError(f"Unsupported summarization method: {method}")
-
-    if strict_budget:
-        summary = apply_word_limit(summary, target_budget, return_list=True)
-
-    if target_content:
-        summary = _reorder_sentences(summary, target_content)
-
-    guidance_scores = {}
-    if guidance:
-        guidance_scores = {g.__class__.__name__: g.score(summary) for g in guidance}
-
-    if verbose:
-        show_summary(summary)
-
-    return summary, guidance_scores

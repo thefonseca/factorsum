@@ -36,12 +36,12 @@ def rouge_score(summary, target_summary, rouge_ngrams=None):
         rouge_ngrams = ["rouge1", "rouge2", "rougeL", "rougeLsum"]
     rouge = rouge_scorer.RougeScorer(rouge_ngrams, use_stemmer=True)
 
-    if type(target_summary) == list:
+    if isinstance(target_summary, (list, tuple)):
         target_summary_str = "\n".join(target_summary)
     else:
         target_summary_str = target_summary
 
-    if type(summary) == list:
+    if isinstance(summary, (list, tuple)):
         summary_str = "\n".join(summary)
     else:
         summary_str = summary

@@ -248,9 +248,9 @@ def _load_dataset_split(
 
     try:
         # try to load pre-processed file
+        logger.info(f"Loading dataset from {filename}...")
         data = _load_pickle(filename, data_dir)
-        logger.info(f"Loaded dataset from {filename}")
-        return data
+        # return data
     except:
         data = _create_dataset(
             dataset_path,

@@ -6,11 +6,22 @@ import fire
 import nltk
 from rich.logging import RichHandler
 
-from .extrinsic import find_best_summary
-from .sampling import get_document_views
-from .metrics import summarization_metrics
-from .utils import load_model, show_summary, sent_tokenize
+from .constraints import BudgetConstraint, RedundancyConstraint, SummaryViewConstraint
+from .extrinsic import greedy_summary, textrank_summary
+from .guidance import ROUGEContentGuidance
 from .memoizer import memoize
+from .metrics import summarization_metrics
+from .oracle import get_oracles
+from .sampling import get_document_views
+from .utils import (
+    load_model,
+    log_summary,
+    log_reference_summary,
+    log_guidance_scores,
+    sent_tokenize,
+    word_tokenize,
+    sent_tokenize_views,
+)
 
 try:
     nltk.data.find("tokenizers/punkt")
@@ -20,40 +31,13 @@ except:
 logger = logging.getLogger(__name__)
 
 
-def _print_guidance_scores(scores):
-    info = ["Guidances scores:"]
-    for key in scores.keys():
-        if type(scores[key]) == dict:
-            _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
-            _scores = ", ".join(_scores)
-        else:
-            _scores = f"{scores[key]:.3f}"
-        info.append(f"{key}: {_scores}")
-    logger.info("\n".join(info))
-
-
-def _log_reference_summary(target, sent_tokenize_fn=None):
-    n_words = sum([len(nltk.word_tokenize(sent)) for sent in target])
-    logger.info(f"Reference summary: ({n_words} words)")
-
-    if type(target) == list:
-        target = "\n".join(target)
-
-    if sent_tokenize_fn:
-        target = sent_tokenize_fn(target)
-    else:
-        target = sent_tokenize(target)
-
-    show_summary(target)
-
-
 def get_source_guidance(source, token_budget, verbose=False):
     source_guidance = []
     guidance_tokens = 0
 
     for sent in source:
         source_guidance.append(sent)
-        guidance_tokens += len(sent.split())
+        guidance_tokens += len(word_tokenize(sent))
         if guidance_tokens > token_budget:
             break
 
@@ -75,15 +59,15 @@ class FactorSum:
         model, _ = load_model(model_name_or_path, "intrinsic_importance")
         return model
 
+    @lru_cache(maxsize=100000)
     @memoize()
-    def _get_summary_views(self, source_views, model_name_or_path, batch_size=20):
+    def _get_summary_views(self, source_views, model_name_or_path, batch_size=16):
         model = FactorSum._load_intrinsic_model(model_name_or_path)
-
-        if isinstance(source_views, (list, tuple)):
-            source_views = ["\n".join(view) for view in source_views]
 
         logger.debug(f"Generating summary views for {len(source_views)} source views")
         views = []
+        if isinstance(source_views, tuple):
+            source_views = list(source_views)
 
         for out in model(source_views, batch_size=batch_size, truncation=True):
             views.append(out["summary_text"])
@@ -91,7 +75,7 @@ class FactorSum:
         return views
 
     @staticmethod
-    @memoize()
+    @lru_cache(maxsize=100000)
     def _get_document_views(source_sents, sample_factor, views_per_doc, seed):
         doc_views = get_document_views(
             source_sents,
@@ -102,29 +86,119 @@ class FactorSum:
         return doc_views
 
     @staticmethod
-    @memoize()
+    def _get_valid_views(views, min_words=5):
+        n_ignored = sum([p is None for p in views])
+        if n_ignored > 0:
+            logger.warning(f"Ignoring {n_ignored} views")
+            views = [p for p in views if p is not None]
+
+        _views = []
+        constraint = SummaryViewConstraint(min_length=min_words)
+
+        for view in views:
+            if not constraint.check(view):
+                continue
+            if view not in _views:
+                _views.append(view)
+
+        return _views
+
+    @staticmethod
+    def _get_oracle_idxs(source_sents, target_sents):
+        oracle_idxs = get_oracles([source_sents], [target_sents], progress_bar=False)[0]
+        oracle_idxs = [x if x is not None else len(oracle_idxs) for x in oracle_idxs]
+        return oracle_idxs
+
+    @staticmethod
+    def _reorder_sentences(summary, target_content):
+        _target_content = target_content.replace("<n>", "")
+        _target_content = sent_tokenize(_target_content)
+        oracle_idxs = FactorSum._get_oracle_idxs(_target_content, summary)
+        summary = [x for _, x in sorted(zip(oracle_idxs, summary))]
+        return summary
+
+    @staticmethod
     def _find_best_summary(
         summary_views,
         target_budget,
+        constraints,
         target_content,
-        custom_guidance,
+        guidance,
         min_words_per_view,
         sent_tokenize_fn,
+        strict_budget,
         method,
-        verbose,
     ):
-        return find_best_summary(
-            summary_views,
-            target_budget,
-            target_content=target_content,
-            custom_guidance=custom_guidance,
-            min_words_per_view=min_words_per_view,
-            sent_tokenize_fn=sent_tokenize_fn,
-            method=method,
-            verbose=verbose,
+        summary_views = FactorSum.preprocess_summary_views(
+            summary_views, min_words_per_view, sent_tokenize_fn
         )
 
-    @memoize()
+        if method == "factorsum":
+            summary = greedy_summary(summary_views, guidance, constraints)
+        elif method == "textrank":
+            summary = textrank_summary(summary_views, target_budget)
+        else:
+            raise ValueError(f"Unsupported summarization method: {method}")
+
+        if strict_budget:
+            summary = FactorSum._apply_word_limit(
+                summary, target_budget, return_list=True
+            )
+
+        if target_content:
+            summary = FactorSum._reorder_sentences(summary, target_content)
+
+        guidance_scores = {}
+        if guidance:
+            guidance_scores = {g.__class__.__name__: g.score(summary) for g in guidance}
+
+        return summary, guidance_scores
+
+    @staticmethod
+    def get_guidance(
+        target_content=None,
+        target_budget=None,
+        content_weight=1.0,
+        content_score_key=None,
+        custom_guidance=None,
+    ):
+        guidance = []
+
+        if content_score_key is None:
+            if target_budget and target_budget > 0:
+                content_score_key = "recall"
+            else:
+                content_score_key = "fmeasure"
+
+        if target_content:
+            guidance.append(
+                ROUGEContentGuidance(
+                    target_content, weight=content_weight, score_key=content_score_key
+                )
+            )
+
+        if custom_guidance:
+            if type(custom_guidance) == list:
+                guidance.extend(custom_guidance)
+            else:
+                guidance.append(custom_guidance)
+
+        return guidance
+
+    @staticmethod
+    def get_constraints(target_budget=None, custom_constraints=None):
+        constraints = [RedundancyConstraint()]
+
+        if target_budget and target_budget > 0:
+            constraints.append(BudgetConstraint(target_budget))
+
+        if custom_constraints:
+            if type(custom_constraints) == list:
+                constraints.extend(custom_constraints)
+            else:
+                constraints.append(custom_constraints)
+        return constraints
+
     def generate_summary_views(
         self,
         source,
@@ -142,19 +216,33 @@ class FactorSum:
         source_sents = sent_tokenize_fn(source, min_words=min_words_per_view)
 
         doc_views = FactorSum._get_document_views(
-            source_sents,
+            tuple(source_sents),
             sample_factor=sample_factor,
             views_per_doc=views_per_doc,
             seed=seed,
         )
 
+        if isinstance(doc_views["source_views"], (list, tuple)):
+            source_views = tuple(["\n".join(view) for view in doc_views["source_views"]])
+
         views = self._get_summary_views(
-            doc_views["source_views"], self.model_name_or_path, batch_size=batch_size
+            source_views, self.model_name_or_path, batch_size=batch_size
         )
 
         if return_source_sents:
             return views, source_sents
 
+        return views
+
+    @staticmethod
+    def preprocess_summary_views(views, min_words_per_view, sent_tokenize_fn=None):
+        views = FactorSum._get_valid_views(views, min_words=min_words_per_view)
+        # sent tokenize all preds to get more fine-grained information
+        if sent_tokenize_fn is None:
+            sent_tokenize_fn = sent_tokenize
+        views = sent_tokenize_views(
+            views, min_words=min_words_per_view, sent_tokenize_fn=sent_tokenize_fn
+        )
         return views
 
     def summarize(
@@ -164,10 +252,13 @@ class FactorSum:
         source_target_budget=0,
         target_content=None,
         custom_guidance=None,
+        custom_constraints=None,
+        content_weight=1.0,
         sample_factor=5,
         views_per_doc=20,
         min_words_per_view=5,
         sent_tokenize_fn=None,
+        strict_budget=False,
         method="factorsum",
         verbose=False,
         seed=17,
@@ -185,16 +276,35 @@ class FactorSum:
         if target_content is None and source_target_budget:
             target_content = get_source_guidance(source_sents, source_target_budget)
 
+        if target_content is not None:
+            if type(target_content) == list:
+                target_content = "\n".join(target_content)
+
+        guidance = FactorSum.get_guidance(
+            target_content=target_content,
+            target_budget=target_budget,
+            content_weight=content_weight,
+            custom_guidance=custom_guidance,
+        )
+
+        constraints = FactorSum.get_constraints(
+            target_budget=target_budget, custom_constraints=custom_constraints
+        )
+
         summary, guidance_scores = FactorSum._find_best_summary(
             summary_views,
             target_budget,
+            constraints,
+            guidance=guidance,
             target_content=target_content,
-            custom_guidance=custom_guidance,
             min_words_per_view=min_words_per_view,
             sent_tokenize_fn=sent_tokenize_fn,
+            strict_budget=strict_budget,
             method=method,
-            verbose=verbose,
         )
+
+        if verbose:
+            log_summary(summary)
 
         return summary, guidance_scores
 
@@ -221,7 +331,7 @@ def summarize(
         source_token_budget = None
 
     if target and verbose:
-        _log_reference_summary(target, sent_tokenize_fn=sent_tokenize_fn)
+        log_reference_summary(target, sent_tokenize_fn=sent_tokenize_fn)
         logger.info("Generating summary")
         if target_budget:
             logger.info(f"Budget guidance: {target_budget}")
@@ -247,7 +357,7 @@ def summarize(
         logger.info(
             f"Summary words: {sum([len(nltk.word_tokenize(sent)) for sent in summary])}"
         )
-        _print_guidance_scores(guidance_scores)
+        log_guidance_scores(guidance_scores)
     _ = summarization_metrics(summary, target_summary=target, verbose=verbose)
 
     return summary, guidance_scores
