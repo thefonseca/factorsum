@@ -1,5 +1,6 @@
 import itertools
 import logging
+import os
 
 import fire
 from p_tqdm import p_map
@@ -8,6 +9,7 @@ from .utils import (
     get_output_path,
     config_logging,
     get_progress_bar,
+    add_progress_task
 )
 from .evaluation import evaluate as evaluate_summaries
 from factorsum.config import model_params
@@ -89,11 +91,11 @@ def evaluate_all(
     min_words_per_view=None,
     method="factorsum",
     cache_dir=None,
-    save_dir=None,
+    output_dir=None,
     seed=17,
 ):
     timestr = config_logging(
-        dataset_name, split, save_dir, training_domain=training_domain
+        dataset_name, split, output_dir, training_domain=training_domain
     )
 
     content_types, allowed_content_types = get_content_types(method, content_types)
@@ -119,18 +121,11 @@ def evaluate_all(
             sample_factor=sample_factor,
             min_words_per_view=min_words_per_view,
             cache_dir=cache_dir,
-            save_dir=save_dir,
+            output_dir=output_dir,
             verbose=False,
             timestr=timestr,
             seed=seed,
         )
-
-
-def _adjust_budget(budget_value, budget_type, content_type, params):
-    if budget_value is not None:
-        budget_adjust_key = f"{content_type}_content_{budget_type}_budget_adjust"
-        budget_adjust = params.get(budget_adjust_key, 0)
-        return budget_value + budget_adjust
 
 
 def _get_source_budget(source_budget, target_budget, content_type):
@@ -161,7 +156,7 @@ def _get_target_budget(
     elif budget_type == "fixed":
         target_budget = budget_value
 
-    elif budget_type and budget_type != "no":
+    elif budget_type and budget_type not in ["no", "source"]:
         summaries = load_summaries(
             dataset_name,
             split,
@@ -192,7 +187,7 @@ def _get_target_content(
     if content_type and content_type == "oracle":
         target_content = target
 
-    elif content_type and content_type != "source":
+    elif content_type and content_type not in ["no", "source"]:
         target_content = load_summaries(
             dataset_name,
             split,
@@ -253,6 +248,7 @@ def summarize_job(
 def evaluate(
     doc_id=None,
     max_samples=10000,
+    dataset=None,
     data_dir="data",
     dataset_name="arxiv",
     split="test",
@@ -268,14 +264,15 @@ def evaluate(
     sample_factor=5,
     min_words_per_view=5,
     cache_dir=None,
-    save_dir=None,
+    output_dir=None,
     verbose=None,
     timestr=None,
+    progress=None,
     seed=17,
 ):
     if timestr is None:
         timestr = config_logging(
-            dataset_name, split, save_dir, training_domain=training_domain
+            dataset_name, split, output_dir, training_domain=training_domain
         )
 
     params = model_params(
@@ -288,24 +285,23 @@ def evaluate(
         min_words_per_view=min_words_per_view,
     )
 
-    eval_data = load_dataset(
-        dataset_path=params["dataset_path"],
-        dataset_name=dataset_name,
-        split=split,
-        data_dir=data_dir,
-        cache_dir=cache_dir,
-    )
-    logger.info(f"Loaded eval dataset with keys: {list(eval_data.keys())}")
+    if dataset is None:
+        dataset = load_dataset(
+            dataset_path=params["dataset_path"],
+            dataset_name=dataset_name,
+            split=split,
+            data_dir=data_dir,
+            cache_dir=cache_dir,
+        )
 
     if training_domain is None:
         training_domain = dataset_name
 
     token_budget = params["token_budget"]
-    token_budget = _adjust_budget(token_budget, budget_type, content_type, params)
     source_token_budget = params["source_token_budget"]
 
     if doc_id is None:
-        doc_ids = range(len(eval_data["sources"]))
+        doc_ids = range(len(dataset["sources"]))
     elif isinstance(doc_id, int):
         doc_ids = [doc_id]
     else:
@@ -322,6 +318,7 @@ def evaluate(
     sources = []
     targets = []
     custom_guidances = []
+    summary_views = []
 
     logger.info(f"Summarization method: {method}")
     if budget_type:
@@ -329,17 +326,21 @@ def evaluate(
     if content_type:
         logger.info(f"Content guidance: {content_type}")
 
-    progress = get_progress_bar()
+    if progress is None:
+        progress = get_progress_bar()
+
+    views_task = add_progress_task(
+        progress, "Generating summary views...", total=len(doc_ids), existing_ok=False
+    )
+
     with progress:
-        for doc_id in progress.track(
-            doc_ids, description="Generating summary views...", total=len(doc_ids)
-        ):
-            source = eval_data["sources"][doc_id]
-            target = eval_data["targets"][doc_id]
+        for doc_id in doc_ids:
+            source = dataset["sources"][doc_id]
+            target = dataset["targets"][doc_id]
 
             target_content = _get_target_content(
                 doc_id,
-                eval_data["sources"],
+                dataset["sources"],
                 target,
                 content_type,
                 dataset_name,
@@ -361,7 +362,7 @@ def evaluate(
                 budget_type,
                 token_budget,
                 doc_id,
-                eval_data["sources"],
+                dataset["sources"],
                 target,
                 dataset_name,
                 split,
@@ -382,14 +383,7 @@ def evaluate(
                 source_token_budget, target_budget, content_type
             )
 
-            custom_guidances.append(_get_custom_guidance(custom_guidance, doc_id))
-            target_contents.append(target_content)
-            target_budgets.append(target_budget)
-            source_budgets.append(source_budget)
-            sources.append(source)
-            targets.append(target)
-
-            _ = model.generate_summary_views(
+            views = model.generate_summary_views(
                 source,
                 sample_factor=params["sample_factor"],
                 views_per_doc=params["views_per_doc"],
@@ -397,12 +391,50 @@ def evaluate(
                 seed=seed,
             )
 
+            guidance = _get_custom_guidance(custom_guidance, doc_id)
+            custom_guidances.append(guidance)
+            target_contents.append(target_content)
+            target_budgets.append(target_budget)
+            source_budgets.append(source_budget)
+            sources.append(source)
+            targets.append(target)
+            summary_views.append(views)
+            progress.update(views_task, advance=1)
+
     if len(sources) == 0:
         return
 
+    if len(custom_guidances) > 1 and len(custom_guidances) != len(doc_ids):
+        raise ValueError(
+            f"Number of guidance objects is inconsistent with number of "
+            f"samples: {len(custom_guidance)} != {len(doc_ids)}"
+        )
+
+    if progress is None:
+        progress = get_progress_bar()
+
+    guidance_task = add_progress_task(
+        progress, "Pre-computing guidance data for views...", total=len(summary_views), existing_ok=False
+    )
+    with progress:
+        for idx, view_sentences in enumerate(summary_views):
+            guidances = FactorSum.get_guidance(
+                target_content=target_contents[idx],
+                target_budget=target_budgets[idx],
+                custom_guidance=custom_guidances[idx],
+            )
+            view_sentences = FactorSum.preprocess_summary_views(
+                view_sentences, params["min_words_per_view"]
+            )
+            for guidance in guidances:
+                if not guidance.parallelizable:
+                    [guidance.score([s]) for s in view_sentences]
+
+            progress.update(guidance_task, advance=1)
+
     # In this summarization pass, FactorSum will use memoized
-    # summary views, so only the extrinsic optimization computation
-    # will be performed. This two-step process is necessary
+    # results from previous steps, so only the extrinsic optimization
+    # computation will be performed. This multi-step process is necessary
     # as the seq2seq generation cannot be parallelized via p_map.
     logger.info("Generating summaries from summary views...")
     results = p_map(
@@ -432,7 +464,7 @@ def evaluate(
     guidance_scores = [r[1] for r in results]
 
     save_to = get_output_path(
-        save_dir,
+        output_dir,
         dataset_name,
         split,
         content_type,
@@ -452,4 +484,5 @@ def evaluate(
 
 
 if __name__ == "__main__":
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     fire.Fire()

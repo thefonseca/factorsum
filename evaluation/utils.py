@@ -19,12 +19,37 @@ except:
 logger = logging.getLogger(__name__)
 
 
-def get_progress_bar():
+def get_progress_bar(**kwargs):
     return Progress(
-        SpinnerColumn(),
-        *Progress.get_default_columns(),
-        MofNCompleteColumn(),
+        SpinnerColumn(), *Progress.get_default_columns(), MofNCompleteColumn(), **kwargs
     )
+
+def add_progress_task(progress, description, total=100.0, existing_ok=True, reset_existing=True):
+    tasks = [t_id for t_id, t in progress._tasks.items() if t.description == description]
+    task_exists = len(tasks) > 0
+    
+    if existing_ok or not task_exists:
+        return progress.add_task(description, total=total)
+    else:
+        if reset_existing:
+            progress.reset(tasks[0], visible=True)
+        return tasks[0]
+
+
+def word_tokenize(text):
+    if isinstance(text, list):
+        text = " ".join(text)
+    words = nltk.word_tokenize(text)
+    return words
+
+
+def get_avg_sentence_length(docs):
+    lengths = []
+    for doc in docs:
+        sent_words = [len(word_tokenize(sent)) for sent in doc]
+        lengths.append(sum(sent_words))
+    avg_length = np.mean(lengths)
+    return avg_length
 
 
 def get_sources(data):
@@ -83,7 +108,7 @@ def log_summary(doc_id, pred, target, score, bad_score, good_score, score_key="r
 
 
 def get_output_path(
-    save_dir,
+    output_dir,
     dataset,
     split,
     content,
@@ -94,7 +119,7 @@ def get_output_path(
 ):
     save_to = None
 
-    if save_dir:
+    if output_dir:
         suffix = f"{content}_content-{budget}_budget"
         if custom_suffix:
             suffix = f"{suffix}-{custom_suffix}"
@@ -106,7 +131,7 @@ def get_output_path(
             save_subdir = f"{save_subdir}_{timestr}"
 
         save_to = f"{suffix}.csv"
-        save_to = os.path.join(save_dir, save_subdir, save_to)
+        save_to = os.path.join(output_dir, save_subdir, save_to)
 
     return save_to
 
@@ -141,11 +166,11 @@ def get_log_path(
 
 
 def config_logging(
-    dataset_name, split, save_dir, training_domain=None, prefix="factorsum"
+    dataset_name, split, output_dir, training_domain=None, prefix="factorsum"
 ):
     timestr = time.strftime("%Y%m%d-%H%M%S")
     log_path = get_log_path(
-        save_dir,
+        output_dir,
         dataset_name,
         split,
         training_domain=training_domain,
@@ -154,7 +179,7 @@ def config_logging(
     )
     handlers = [RichHandler()]
     if log_path:
-        os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
         handlers.append(logging.FileHandler(log_path, mode="w"))
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO"),

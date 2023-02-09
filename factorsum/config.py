@@ -1,8 +1,7 @@
 from collections import defaultdict
 
 
-def _get_params():
-
+def default_params():
     params = defaultdict(int)
     params["content_weight"] = 1.0
     params["token_budget"] = 200
@@ -10,6 +9,11 @@ def _get_params():
     params["sample_factor"] = 5
     params["sample_type"] = "random"
     params["min_words_per_view"] = 5
+    return params
+
+
+def _get_params():
+    params = default_params()
 
     # we adjust budgets so that the average predicted summary words
     # is close to the validation set average reference summary words
@@ -83,7 +87,9 @@ def _get_params():
     return params
 
 
-def model_params(domain_name, default_params=None, **kwargs):
+def model_params(
+    domain_name, default_params=None, budget_type=None, content_type=None, **kwargs
+):
     if default_params is None:
         params = _get_params()
     else:
@@ -105,5 +111,14 @@ def model_params(domain_name, default_params=None, **kwargs):
     for key, val in kwargs.items():
         if val is not None:
             _model_params[key] = val
+
+    # apply task-specific budget adjustment, if budget is not explicitly set
+    if "token_budget" not in kwargs and budget_type and content_type:
+        token_budget = _model_params.get("token_budget")
+
+        if token_budget is not None:
+            budget_adjust_key = f"{content_type}_content_{budget_type}_budget_adjust"
+            budget_adjust = _model_params.get(budget_adjust_key, 0)
+            _model_params["token_budget"] = token_budget + budget_adjust
 
     return _model_params

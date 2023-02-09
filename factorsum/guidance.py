@@ -8,9 +8,25 @@ except:
     nltk.download("punkt", quiet=True)
 
 
-class ROUGEContentGuidance:
-    def __init__(self, target_content, weight=1.0, rouge_ngrams=None, score_key=None):
-        if type(target_content) == list:
+class Guidance:
+    def __init__(self, parallelizable=True):
+        """A base class for guidance types.
+
+        Args:
+            parallelizable (bool, optional): indicates that it is safe to
+            perform guidance computation using multiprocessing. Should be
+            set to false if guidance involves CUDA computation. Defaults to True.
+        """
+        self.parallelizable = parallelizable
+
+
+class ROUGEContentGuidance(Guidance):
+    def __init__(
+        self, target_content, weight=1.0, rouge_ngrams=None, score_key=None, **kwargs
+    ):
+        super().__init__(**kwargs)
+
+        if isinstance(target_content, list):
             target_content = "\n".join(target_content)
         self.target_content = target_content
         self.weight = weight
@@ -25,6 +41,9 @@ class ROUGEContentGuidance:
         score = {}
         if self.target_content is not None:
 
+            if isinstance(candidate_summary, (list, tuple)):
+                candidate_summary = "\n".join(candidate_summary)
+
             rouge = rouge_score(
                 candidate_summary, self.target_content, rouge_ngrams=self.rouge_ngrams
             )
@@ -38,8 +57,9 @@ class ROUGEContentGuidance:
             return self.weight * total_score
 
 
-class BudgetGuidance:
-    def __init__(self, target_budget, weight=1.0):
+class BudgetGuidance(Guidance):
+    def __init__(self, target_budget, weight=1.0, **kwargs):
+        super().__init__(**kwargs)
         self.target_budget = target_budget
         self.weight = weight
 
