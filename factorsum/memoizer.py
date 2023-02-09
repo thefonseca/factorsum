@@ -1,8 +1,9 @@
+from dataclasses import dataclass
 from functools import wraps
-from typing import Optional, List
 import inspect
 import logging
 import os
+from typing import Optional, List
 
 import numpy as np
 from diskcache import Cache
@@ -10,6 +11,13 @@ from diskcache import Cache
 from datasets.fingerprint import update_fingerprint
 import fire
 
+
+@dataclass(frozen=True)
+class Constants:
+    CACHE_MISS = 0
+
+
+constants = Constants()
 logger = logging.getLogger(__name__)
 default_cache = Cache(os.path.join(os.getenv("HOME", "."), ".memoize"))
 
@@ -22,18 +30,17 @@ def _call_func(func, self, *args, **kwargs):
     return out
 
 
-def _get_item(cache_provider, key, func, self, *args, **kwargs):
+def _get_item(cache_provider, key, func, self, expire, *args, **kwargs):
     with Cache(cache_provider.directory) as cache:
-        out = cache.get(key)
-        cache_hit = False
+        result = cache.get(key, default=constants.CACHE_MISS, retry=True)
+        cache_hit = result != constants.CACHE_MISS
 
-        if out is None:
-            out = _call_func(func, self, *args, **kwargs)
-            cache.set(key, out)
+        if kwargs.get("ignore_cache") or not cache_hit:
+            result = _call_func(func, self, *args, **kwargs)
+            cache.set(key, result, expire=expire, retry=True)
         else:
-            cache_hit = True
             logger.debug(f"Item from cache: {key}")
-    return out, cache_hit
+    return result, cache_hit
 
 
 def _remove_default_kwargs(func, kwargs):
@@ -71,6 +78,7 @@ def memoize(
     ignore_kwargs: Optional[List[str]] = None,
     randomized_function: bool = False,
     version: Optional[str] = None,
+    expire: Optional[float] = None,
     log_level: Optional[int] = logging.DEBUG,
 ):
     if cache is None:
@@ -126,6 +134,7 @@ def memoize(
             kwargs_for_fingerprint = _filter_kwargs(
                 kwargs_for_fingerprint, use_kwargs, ignore_kwargs
             )
+            _ = kwargs_for_fingerprint.pop("ignore_cache", None)
 
             if randomized_function:
                 # randomized functions have `seed` and `generator` parameters
@@ -138,7 +147,7 @@ def memoize(
             out = None
             if cache is not None:
                 out, cache_hit = _get_item(
-                    cache, fingerprint, func, self, *args, **kwargs
+                    cache, fingerprint, func, self, expire, *args, **kwargs
                 )
             else:
                 out = _call_func(func, self, *args, **kwargs)
