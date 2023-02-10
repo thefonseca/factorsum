@@ -1,4 +1,7 @@
 from collections import defaultdict
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def default_params():
@@ -13,7 +16,7 @@ def default_params():
 
 
 def _get_params():
-    params = default_params()
+    params = {}
 
     # we adjust budgets so that the average predicted summary words
     # is close to the validation set average reference summary words
@@ -88,37 +91,36 @@ def _get_params():
 
 
 def model_params(
-    domain_name, default_params=None, budget_type=None, content_type=None, **kwargs
+    domain_name, budget_type=None, content_type=None, **kwargs
 ):
-    if default_params is None:
-        params = _get_params()
-    else:
-        params = default_params
+    _default_params = default_params()
+    _model_params = _get_params().get(domain_name)
 
-    params["dataset_path"] = params[domain_name].get("dataset_path", domain_name)
-
-    domains = ["pubmed", "arxiv", "govreport"]
-    default_param_keys = [key for key in params.keys() if key not in domains]
-
-    _model_params = params[domain_name]
+    if _model_params is None:
+        logger.warning(f"Config for domain {domain_name} not found. Creating a new one.")
+        _model_params = {}
+        
     _model_params["domain_name"] = domain_name
-
-    for param_key in default_param_keys:
-        param_value = params[domain_name].get(param_key, params[param_key])
-        _model_params[param_key] = param_value
+    _model_params.update(_default_params)
 
     # override params if values are not None
     for key, val in kwargs.items():
         if val is not None:
             _model_params[key] = val
 
+    token_budget = _model_params.get("token_budget")
     # apply task-specific budget adjustment, if budget is not explicitly set
     if "token_budget" not in kwargs and budget_type and content_type:
-        token_budget = _model_params.get("token_budget")
-
         if token_budget is not None:
             budget_adjust_key = f"{content_type}_content_{budget_type}_budget_adjust"
             budget_adjust = _model_params.get(budget_adjust_key, 0)
             _model_params["token_budget"] = token_budget + budget_adjust
+
+    # set source token budget for source content guidance
+    if token_budget is not None and content_type and content_type == "source":
+        source_budget = _model_params.get('source_token_budget')
+        if source_budget is None:
+            source_budget = _model_params["token_budget"]
+            _model_params['source_token_budget'] = source_budget
 
     return _model_params
