@@ -1,5 +1,5 @@
 transformers==4.26.0
-datasets==2.6.1
+datasets==2.9.0
 fire==0.4.0
 gdown==4.5.1
 requests==2.28.1
@@ -11,3 +11,4 @@ rich==13.0.1
 diskcache==5.4.0
 accelerate==0.16.0
 optimum==1.6.3
+p_tqdm==1.4.0
