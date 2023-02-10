@@ -402,7 +402,7 @@ def _maybe_fix_predictions(preds, expected_length, invalid_samples=None):
     return preds
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=None)
 def load_summaries(
     dataset_name,
     split,
@@ -451,6 +451,7 @@ def load_summary_views(
     return summary_views
 
 
+@lru_cache(maxsize=1)
 def load_dataset(
     dataset_path,
     dataset_name,

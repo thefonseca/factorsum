@@ -49,29 +49,42 @@ def get_source_guidance(source, token_budget, verbose=False):
 
 
 class FactorSum:
-    def __init__(self, model_name_or_path):
+    def __init__(self, model_name_or_path, model_id=None, model_url=None):
         super().__init__()
         self.model_name_or_path = model_name_or_path
+        self.model_id = model_id
+        self.model_url = model_url
 
     @staticmethod
     @lru_cache(maxsize=1)
-    def _load_intrinsic_model(model_name_or_path):
-        model, _ = load_model(model_name_or_path, "intrinsic_importance")
+    def _load_intrinsic_model(model_domain_or_path, model_id, model_url=None):
+        model, _ = load_model(model_domain_or_path=model_domain_or_path,
+                              model_type="intrinsic_importance", 
+                              model_id=model_id, model_url=model_url)
         return model
 
-    @lru_cache(maxsize=100000)
+    @staticmethod
+    @lru_cache(maxsize=None)
     @memoize()
-    def _get_summary_views(self, source_views, model_name_or_path, batch_size=16):
-        model = FactorSum._load_intrinsic_model(model_name_or_path)
+    def _get_summary_view(source_view, model_name_or_path, model_id, model_url=None):
+        model = FactorSum._load_intrinsic_model(model_name_or_path, 
+                                                model_id=model_id, 
+                                                model_url=model_url)
+        
+        summary_view = model(source_view, truncation=True)[0]["summary_text"]
+        return summary_view
 
+    @staticmethod
+    @memoize()
+    def _get_summary_views(source_views, model_name_or_path, model_id, model_url=None):
         logger.debug(f"Generating summary views for {len(source_views)} source views")
         views = []
-        if isinstance(source_views, tuple):
-            source_views = list(source_views)
-
-        for out in model(source_views, batch_size=batch_size, truncation=True):
-            views.append(out["summary_text"])
-
+        
+        for source_view in source_views:
+            views.append(FactorSum._get_summary_view(source_view, 
+                                                     model_name_or_path, 
+                                                     model_id, 
+                                                     model_url=model_url))
         return views
 
     @staticmethod
@@ -202,7 +215,6 @@ class FactorSum:
     def generate_summary_views(
         self,
         source,
-        batch_size=20,
         sample_factor=5,
         views_per_doc=20,
         min_words_per_view=5,
@@ -225,8 +237,8 @@ class FactorSum:
         if isinstance(doc_views["source_views"], (list, tuple)):
             source_views = tuple(["\n".join(view) for view in doc_views["source_views"]])
 
-        views = self._get_summary_views(
-            source_views, self.model_name_or_path, batch_size=batch_size
+        views = FactorSum._get_summary_views(
+            source_views, self.model_name_or_path, self.model_id, model_url=self.model_url
         )
 
         if return_source_sents:
@@ -312,6 +324,8 @@ class FactorSum:
 def summarize(
     source,
     training_domain="arxiv",
+    model_id=None,
+    model_url=None,
     target=None,
     target_budget=None,
     source_token_budget=None,
@@ -339,7 +353,8 @@ def summarize(
             logger.info(f"Content guidance: {content_guidance_type}")
             logger.info(f"Source token budget: {source_token_budget}")
 
-    model = FactorSum(training_domain)
+    model = FactorSum(training_domain, model_id=model_id, model_url=model_url)
+    
     summary, guidance_scores = model.summarize(
         source,
         target_budget=target_budget,

@@ -223,12 +223,17 @@ def summarize_job(
     sample_factor,
     views_per_doc,
     min_words_per_view,
+    sent_tokenize_fn,
+    model_id=None,
+    model_url=None,
     target=None,
     verbose=False,
 ):
     summary, guidance_scores = summarize(
         source,
         training_domain,
+        model_id=model_id,
+        model_url=model_url,
         target=target,
         target_budget=target_budget,
         source_token_budget=source_budget,
@@ -238,6 +243,7 @@ def summarize_job(
         sample_factor=sample_factor,
         views_per_doc=views_per_doc,
         min_words_per_view=min_words_per_view,
+        sent_tokenize_fn=sent_tokenize_fn,
         verbose=verbose,
     )
 
@@ -263,6 +269,8 @@ def evaluate(
     views_per_doc=20,
     sample_factor=5,
     min_words_per_view=5,
+    sent_tokenize_fn=None,
+    model_kwargs=None,
     cache_dir=None,
     output_dir=None,
     verbose=None,
@@ -275,6 +283,9 @@ def evaluate(
             dataset_name, split, output_dir, training_domain=training_domain
         )
 
+    if model_kwargs is None:
+        model_kwargs = {}
+
     params = model_params(
         dataset_name,
         token_budget=token_budget,
@@ -283,6 +294,7 @@ def evaluate(
         sample_factor=sample_factor,
         intrinsic_model_id=intrinsic_model_id,
         min_words_per_view=min_words_per_view,
+        **model_kwargs
     )
 
     if dataset is None:
@@ -298,7 +310,7 @@ def evaluate(
         training_domain = dataset_name
 
     token_budget = params["token_budget"]
-    source_token_budget = params["source_token_budget"]
+    source_token_budget = params.get("source_token_budget")
 
     if doc_id is None:
         doc_ids = range(len(dataset["sources"]))
@@ -311,7 +323,9 @@ def evaluate(
     if verbose is None and len(doc_ids) == 1:
         verbose = True
 
-    model = FactorSum(training_domain)
+    model = FactorSum(training_domain, 
+                      model_id=params.get('intrinsic_importance_model_id'),
+                      model_url=params.get('intrinsic_importance_model_url'))
     target_contents = []
     target_budgets = []
     source_budgets = []
@@ -441,6 +455,8 @@ def evaluate(
         lambda source, target, target_budget, source_budget, target_content, guidance: summarize_job(
             source,
             training_domain,
+            model_id=model.model_id,
+            model_url=model.model_url,
             target_budget=target_budget,
             target_content=target_content,
             source_budget=source_budget,
@@ -449,6 +465,7 @@ def evaluate(
             sample_factor=params["sample_factor"],
             views_per_doc=params["views_per_doc"],
             min_words_per_view=params["min_words_per_view"],
+            sent_tokenize_fn=sent_tokenize_fn,
             target=target,
             verbose=verbose,
         ),

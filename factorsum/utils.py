@@ -87,10 +87,10 @@ def get_model_path(model_type, model_id, model_dir="artifacts"):
     return model_path
 
 
-def get_model_info(model_type, training_domain=None, params=None):
-    if params is None and training_domain:
+def get_model_info(model_type, training_domain=None):
+    if training_domain:
         params = model_params(training_domain)
-    elif params is None:
+    else:
         params = default_params()
 
     model_id = params[f"{model_type}_model_id"]
@@ -102,25 +102,23 @@ def _download_model(
     training_domain=None,
     model_dir="artifacts",
     model_type="intrinsic_importance",
-    params=None,
+    model_id=None,
+    model_url=None
 ):
-    model_id, model_url = get_model_info(
-        model_type, training_domain=training_domain, params=params
-    )
+    if model_id is None or model_url is None:
+        model_id, model_url = get_model_info(
+            model_type, training_domain=training_domain
+        )
     model_path = get_model_path(model_type, model_id, model_dir)
-
     download_resource(model_url, f"{model_path}.zip")
     return model_path
 
 
-def load_hf_model(model_path, model_type, pipeline_type=None, use_bettertransformer=True, params=None):
+def load_hf_model(model_path, model_type, pipeline_type=None, use_bettertransformer=True):
 
     tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
 
     model_type = model_type.replace("-", "_")
-
-    if pipeline_type is None and params:
-        pipeline_type = params.get(f"{model_type}_pipeline_type", "summarization")
 
     if pipeline_type is None and model_type == "intrinsic_importance":
         pipeline_type = "summarization"
@@ -146,21 +144,22 @@ def load_model(
     model_domain_or_path=None,
     model_type="intrinsic_importance",
     pipeline_type=None,
+    model_id=None,
+    model_url=None,
     model_dir="artifacts",
-    params=None,
 ):
     if model_domain_or_path and Path(model_domain_or_path).exists():
         logger.info(f"Model found in path: {model_domain_or_path}")
         model_path = model_domain_or_path
     else:
         model_path = _download_model(
-            model_domain_or_path, model_dir, model_type=model_type, params=params
+            model_domain_or_path, model_dir, model_type=model_type, model_id=model_id, model_url=model_url
         )
 
     logger.info(f"Loading {model_type} model from {model_path}...")
 
     model = load_hf_model(
-        model_path, model_type, pipeline_type=pipeline_type, params=params
+        model_path, model_type, pipeline_type=pipeline_type
     )
 
     return model, model_path
