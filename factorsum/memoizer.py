@@ -19,7 +19,9 @@ class Constants:
 
 constants = Constants()
 logger = logging.getLogger(__name__)
-default_cache = Cache(os.path.join(os.getenv("HOME", "."), ".memoize"))
+default_cache = Cache(
+    os.path.join(os.getenv("HOME", "."), ".memoize"), size_limit=int(40e9)
+)
 
 
 def _call_func(func, self, *args, **kwargs):
