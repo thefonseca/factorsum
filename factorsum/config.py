@@ -97,7 +97,7 @@ def model_params(
     _model_params = _get_params().get(domain_name)
 
     if _model_params is None:
-        logger.warning(f"Config for domain {domain_name} not found. Creating a new one.")
+        logger.warning(f"Config for domain '{domain_name}' not found. Creating a new config.")
         _model_params = {}
         
     _model_params["domain_name"] = domain_name

@@ -402,6 +402,7 @@ def evaluate(
                 sample_factor=params["sample_factor"],
                 views_per_doc=params["views_per_doc"],
                 min_words_per_view=params["min_words_per_view"],
+                sent_tokenize_fn=sent_tokenize_fn,
                 seed=seed,
             )
 

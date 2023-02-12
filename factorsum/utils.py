@@ -116,7 +116,7 @@ def _download_model(
 
 def load_hf_model(model_path, model_type, pipeline_type=None, use_bettertransformer=True):
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_path, padding=True, truncation=True)
 
     model_type = model_type.replace("-", "_")
 

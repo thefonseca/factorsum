@@ -66,25 +66,19 @@ class FactorSum:
     @staticmethod
     @lru_cache(maxsize=None)
     @memoize()
-    def _get_summary_view(source_view, model_name_or_path, model_id, model_url=None):
+    def _get_summary_views(source_views, model_name_or_path, model_id, model_url=None):
         model = FactorSum._load_intrinsic_model(model_name_or_path, 
                                                 model_id=model_id, 
                                                 model_url=model_url)
         
-        summary_view = model(source_view, truncation=True)[0]["summary_text"]
-        return summary_view
-
-    @staticmethod
-    @memoize()
-    def _get_summary_views(source_views, model_name_or_path, model_id, model_url=None):
         logger.debug(f"Generating summary views for {len(source_views)} source views")
-        views = []
+        views = []  
         
-        for source_view in source_views:
-            views.append(FactorSum._get_summary_view(source_view, 
-                                                     model_name_or_path, 
-                                                     model_id, 
-                                                     model_url=model_url))
+        if isinstance(source_views, tuple):
+            source_views = list(source_views)
+
+        for out in model(source_views, batch_size=len(source_views), truncation=True):
+            views.append(out["summary_text"])
         return views
 
     @staticmethod
