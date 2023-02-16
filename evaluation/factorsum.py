@@ -12,6 +12,7 @@ from .utils import (
     add_progress_task
 )
 from .evaluation import evaluate as evaluate_summaries
+from .utils import compute_metric
 from factorsum.config import model_params
 from factorsum.data import load_dataset, load_summaries
 from factorsum.model import summarize, FactorSum
@@ -265,6 +266,7 @@ def evaluate(
     content_type=None,
     budget_type=None,
     custom_guidance=None,
+    custom_metrics=None,
     method="factorsum",
     views_per_doc=20,
     sample_factor=5,
@@ -348,7 +350,7 @@ def evaluate(
     )
 
     with progress:
-        for doc_id in doc_ids:
+        for idx, doc_id in enumerate(doc_ids):
             source = dataset["sources"][doc_id]
             target = dataset["targets"][doc_id]
 
@@ -406,7 +408,7 @@ def evaluate(
                 seed=seed,
             )
 
-            guidance = _get_custom_guidance(custom_guidance, doc_id)
+            guidance = _get_custom_guidance(custom_guidance, idx)
             custom_guidances.append(guidance)
             target_contents.append(target_content)
             target_budgets.append(target_budget)
@@ -425,11 +427,11 @@ def evaluate(
             f"samples: {len(custom_guidance)} != {len(doc_ids)}"
         )
 
-    if progress is None:
-        progress = get_progress_bar()
+    # if progress is None:
+    #     progress = get_progress_bar()
 
     guidance_task = add_progress_task(
-        progress, "Pre-computing guidance data for views...", total=len(summary_views), existing_ok=False
+        progress, "Pre-computing guidance for views...", total=len(summary_views), existing_ok=False
     )
     with progress:
         for idx, view_sentences in enumerate(summary_views):
@@ -491,10 +493,16 @@ def evaluate(
         timestr=timestr,
     )
 
+    scores = {'guidance_scores': guidance_scores}
+    if custom_metrics:
+        for metric_key, metric_fn in custom_metrics.items():
+            concept_scores = compute_metric(targets, summaries, metric_fn, progress=progress)
+            scores[metric_key] = concept_scores
+
     evaluate_summaries(
         summaries,
         targets,
-        guidance_scores=guidance_scores,
+        scores=scores,
         n_samples=max_samples,
         save_preds_to=save_to,
         seed=seed,

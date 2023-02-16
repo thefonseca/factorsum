@@ -7,6 +7,7 @@ import nltk
 import numpy as np
 from rich.logging import RichHandler
 from rich.progress import Progress, MofNCompleteColumn, SpinnerColumn
+from scipy.stats import bootstrap
 
 from factorsum.data import load_dataset, load_summary_views, load_summaries
 from factorsum.model import get_source_guidance
@@ -23,6 +24,7 @@ def get_progress_bar(**kwargs):
     return Progress(
         SpinnerColumn(), *Progress.get_default_columns(), MofNCompleteColumn(), **kwargs
     )
+
 
 def add_progress_task(progress, description, total=100.0, existing_ok=True, reset_existing=True):
     tasks = [t_id for t_id, t in progress._tasks.items() if t.description == description]
@@ -87,6 +89,75 @@ def log_rouge_scores(scores):
     logger.info("\n".join(info))
 
 
+def log_scores(name, scores):
+    if len(scores) == 0:
+        return
+
+    if name == 'rouge':
+        log_rouge_scores(scores)
+    else:
+        info = [f'{name}:']
+        for key in scores.keys():
+            if type(scores[key]) == dict:
+                _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
+                _scores = ", ".join(_scores)
+            else:
+                _scores = f"{scores[key]:.3f}"
+            info.append(f"{key}: {_scores}")
+        info.append(" ")
+        logger.info("\n".join(info))
+
+
+def aggregate_scores(scores):
+    if len(scores) == 1:
+        return scores[0]
+    elif len(scores) == 0:
+        return {}
+
+    agg_scores = {}
+
+    for score in scores:
+        for key in score.keys():
+            key_scores = agg_scores.get(key, [])
+            _score = score[key]
+            if isinstance(_score, list) and len(_score) == 1:
+                _score = _score[0]
+            key_scores.append(_score)
+            agg_scores[key] = key_scores
+
+    confidence_intervals = {}
+    for key in agg_scores.keys():
+        ci = bootstrap(
+            (agg_scores[key],),
+            np.mean,
+            confidence_level=0.95,
+            random_state=17,
+            method="BCa",
+        )
+        confidence_intervals[key] = {
+            "low": ci.confidence_interval.low,
+            "high": ci.confidence_interval.high,
+            "mean": np.mean(agg_scores[key]),
+        }
+
+    return confidence_intervals
+
+
+def compute_metric(references, candidates, metric_fn, progress=None):
+    if progress is None:
+        progress = get_progress_bar()
+
+    results = []
+    task = add_progress_task(
+        progress, f"Computing {metric_fn.__name__}...", total=len(references), existing_ok=False
+    )
+    with progress:
+        for ref, cand in zip(references, candidates):
+            results.append(metric_fn([cand], references=[ref]))
+            progress.update(task, advance=1)
+    return results
+
+
 def log_summary(doc_id, pred, target, score, bad_score, good_score, score_key="rouge1"):
     if bad_score and score[score_key].fmeasure < bad_score:
         logger.info("BAD SUMMARY ============")
@@ -111,8 +182,8 @@ def get_output_path(
     output_dir,
     dataset,
     split,
-    content,
-    budget,
+    content=None,
+    budget=None,
     training_domain=None,
     timestr=None,
     custom_suffix=None,
@@ -120,7 +191,10 @@ def get_output_path(
     save_to = None
 
     if output_dir:
+        content = content if content else 'no'
+        budget = budget if budget else 'no'
         suffix = f"{content}_content-{budget}_budget"
+        
         if custom_suffix:
             suffix = f"{suffix}-{custom_suffix}"
 

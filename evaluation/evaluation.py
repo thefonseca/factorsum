@@ -2,15 +2,13 @@ import pathlib
 import json
 import logging
 
-import nltk
 import numpy as np
 import pandas as pd
 from rouge_score import scoring
 from p_tqdm import p_map
-from scipy.stats import bootstrap
 
-from .utils import log_summary, log_rouge_scores
-from factorsum.utils import apply_word_limit
+from .utils import log_summary, log_scores, word_tokenize, aggregate_scores
+from factorsum.utils import apply_word_limit, sent_tokenize
 from factorsum.metrics import summarization_metrics
 
 logger = logging.getLogger(__name__)
@@ -27,10 +25,10 @@ def _print_eval_metrics(results):
         f"Avg tokens per abstract sent: {np.mean(results['tokens_per_abstract_sent'])}",
         f"Avg token difference: {np.mean(results['length_diffs'])}",
     ]
-
     logger.info("\n".join(info_str))
     scores = results["scores"]
-    log_rouge_scores(scores["rouge"])
+    for score_key in scores:
+        log_scores(score_key, scores[score_key])
 
 
 def _aggregate_parallel_results(p_results):
@@ -64,53 +62,6 @@ def _aggregate_results(results):
     return results
 
 
-def _print_guidance_scores(scores):
-    if len(scores) == 0:
-        return
-
-    info = ["Guidances scores:"]
-    for key in scores.keys():
-        if type(scores[key]) == dict:
-            _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
-            _scores = ", ".join(_scores)
-        else:
-            _scores = f"{scores[key]:.3f}"
-        info.append(f"{key}: {_scores}")
-    logger.info("\n".join(info))
-
-
-def _aggregate_guidance_scores(scores):
-    if len(scores) == 1:
-        return scores[0]
-    elif len(scores) == 0:
-        return {}
-
-    agg_scores = {}
-
-    for score in scores:
-        for key in score.keys():
-            key_scores = agg_scores.get(key, [])
-            key_scores.append(score[key])
-            agg_scores[key] = key_scores
-
-    confidence_intervals = {}
-    for key in agg_scores.keys():
-        ci = bootstrap(
-            (agg_scores[key],),
-            np.mean,
-            confidence_level=0.95,
-            random_state=17,
-            method="BCa",
-        )
-        confidence_intervals[key] = {
-            "low": ci.confidence_interval.low,
-            "high": ci.confidence_interval.high,
-            "mean": np.mean(agg_scores[key]),
-        }
-
-    return confidence_intervals
-
-
 def eval_job(
     pred,
     target,
@@ -119,7 +70,6 @@ def eval_job(
     bad_score=None,
     max_target_tokens=None,
 ):
-
     sents_per_summary = []
     tokens_per_summary = []
     tokens_per_summary_sent = []
@@ -134,7 +84,7 @@ def eval_job(
     elif "\n" in pred:
         pred_sents = pred.split("\n")
     else:
-        pred_sents = nltk.sent_tokenize(pred)
+        pred_sents = sent_tokenize(pred)
 
     pred = "\n".join(pred_sents)
 
@@ -149,13 +99,13 @@ def eval_job(
     if target_is_list:
         target = "\n".join(target)
 
-    pred_words = nltk.word_tokenize(pred)
-    target_words = nltk.word_tokenize(target)
+    pred_words = word_tokenize(pred)
+    target_words = word_tokenize(target)
 
     sents_per_summary_doc = len(pred_sents)
     tokens_per_summary_sent_doc = []
     for sent in pred_sents:
-        words = nltk.word_tokenize(sent)
+        words = word_tokenize(sent)
         tokens_per_summary_sent_doc.append(len(words))
     if len(tokens_per_summary_sent_doc):
         tokens_per_summary_sent_doc = np.mean(tokens_per_summary_sent_doc)
@@ -172,7 +122,7 @@ def eval_job(
     if target_is_list:
         target_sents = target.split("\n")
     else:
-        target_sents = nltk.sent_tokenize(target)
+        target_sents = sent_tokenize(target)
     sents_per_abstract.append(len(target_sents))
     tokens_per_abstract_sent.append(np.mean([len(s.split()) for s in target_sents]))
     tokens_per_abstract.append(len(target_words))
@@ -201,7 +151,7 @@ def eval_job(
 def evaluate(
     preds,
     targets,
-    guidance_scores=None,
+    scores=None,
     max_target_tokens=None,
     save_preds_to=None,
     n_samples=1000,
@@ -209,7 +159,6 @@ def evaluate(
     bad_score=None,
     seed=17,
 ):
-
     np.random.seed(seed)
     _preds = preds[:n_samples]
     _targets = targets[:n_samples]
@@ -230,18 +179,41 @@ def evaluate(
     )
 
     results = _aggregate_results(results)
-    _print_eval_metrics(results)
+    
+    scores_df = {}
 
-    if guidance_scores:
-        guidance_scores = _aggregate_guidance_scores(guidance_scores)
-        _print_guidance_scores(guidance_scores)
-        results["scores"]["guidance_scores"] = guidance_scores
+    if scores:
+        for score_key in scores:
+            agg_scores = aggregate_scores(scores[score_key])
+            results["scores"][score_key] = agg_scores
+            
+            for sample_scores in scores[score_key]:
+                for sub_key, value in sample_scores.items():
+                    values = scores_df.get(f'{score_key}_{sub_key}', [])
+                    value = sample_scores[sub_key][0]
+                    values.append(value)
+                    scores_df[f'{score_key}_{sub_key}'] = values
+
+    for scores in results['rouge_scores']:
+        for score_key, score in scores.items():
+            for sub_key in ['precision', 'recall', 'fmeasure']:
+                values = scores_df.get(f'{score_key}_{sub_key}', [])
+                value = getattr(score, sub_key)
+                values.append(value)
+                scores_df[f'{score_key}_{sub_key}'] = values
+
+    _print_eval_metrics(results)        
 
     if save_preds_to:
         filepath = pathlib.Path(save_preds_to)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         preds_df = pd.DataFrame({"predictions": _preds, "targets": _targets})
-        preds_df.to_csv(save_preds_to)
+        preds_df.to_csv(save_preds_to, index=False)
+
+        scores_df = pd.DataFrame(scores_df)
+        scores_filename = f"{filepath.stem}_scores.csv"
+        scores_filename = filepath.parent / scores_filename
+        scores_df.to_csv(scores_filename, index=False)
 
         results_filename = f"{filepath.stem}_results.txt"
         results_filename = filepath.parent / results_filename
