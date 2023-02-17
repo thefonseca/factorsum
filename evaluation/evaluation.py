@@ -190,7 +190,10 @@ def evaluate(
             for sample_scores in scores[score_key]:
                 for sub_key, value in sample_scores.items():
                     values = scores_df.get(f'{score_key}_{sub_key}', [])
-                    value = sample_scores[sub_key][0]
+                    if isinstance(sample_scores[sub_key], list):
+                        value = sample_scores[sub_key][0]
+                    else:
+                        value = sample_scores[sub_key]
                     values.append(value)
                     scores_df[f'{score_key}_{sub_key}'] = values
 
