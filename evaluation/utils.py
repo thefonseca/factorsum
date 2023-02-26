@@ -143,7 +143,7 @@ def aggregate_scores(scores):
     return confidence_intervals
 
 
-def compute_metric(references, candidates, metric_fn, progress=None):
+def compute_metric(references, candidates, metric_fn, progress=None, **metric_kwargs):
     if progress is None:
         progress = get_progress_bar()
 
@@ -153,7 +153,7 @@ def compute_metric(references, candidates, metric_fn, progress=None):
     )
     with progress:
         for ref, cand in zip(references, candidates):
-            results.append(metric_fn([cand], references=[ref]))
+            results.append(metric_fn([cand], references=[ref], **metric_kwargs))
             progress.update(task, advance=1)
     return results
 

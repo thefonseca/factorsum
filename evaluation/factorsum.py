@@ -496,7 +496,11 @@ def evaluate(
     scores = {'guidance_scores': guidance_scores}
     if custom_metrics:
         for metric_key, metric_fn in custom_metrics.items():
-            concept_scores = compute_metric(targets, summaries, metric_fn, progress=progress)
+            concept_scores = compute_metric(targets, 
+                                            summaries, 
+                                            metric_fn, 
+                                            progress=progress,
+                                            min_words=params['min_words_per_view'])
             scores[metric_key] = concept_scores
 
     evaluate_summaries(
