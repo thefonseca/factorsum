@@ -29,9 +29,7 @@ def log_rouge_scores(scores):
 
 
 def rouge_score(summary, target_summary, rouge_ngrams=None):
-
     score = {}
-
     if rouge_ngrams is None or len(rouge_ngrams) == 0:
         rouge_ngrams = ["rouge1", "rouge2", "rougeL", "rougeLsum"]
     rouge = rouge_scorer.RougeScorer(rouge_ngrams, use_stemmer=True)
@@ -47,7 +45,6 @@ def rouge_score(summary, target_summary, rouge_ngrams=None):
         summary_str = summary
 
     score["rouge"] = rouge.score(target_summary_str, summary_str)
-
     return score
 
 

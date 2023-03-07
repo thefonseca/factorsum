@@ -32,12 +32,12 @@ def _call_func(func, self, *args, **kwargs):
     return out
 
 
-def _get_item(cache_provider, key, func, self, expire, *args, **kwargs):
+def _get_item(cache_provider, key, func, self, expire, ignore_cache, *args, **kwargs):
     with Cache(cache_provider.directory) as cache:
         result = cache.get(key, default=constants.CACHE_MISS, retry=True)
         cache_hit = result != constants.CACHE_MISS
 
-        if kwargs.get("ignore_cache") or not cache_hit:
+        if ignore_cache or not cache_hit:
             result = _call_func(func, self, *args, **kwargs)
             cache.set(key, result, expire=expire, retry=True)
         else:
@@ -76,6 +76,7 @@ def _filter_kwargs(kwargs, use_kwargs, ignore_kwargs):
 
 def memoize(
     cache=None,
+    ignore_cache=False,
     use_kwargs: Optional[List[str]] = None,
     ignore_kwargs: Optional[List[str]] = None,
     randomized_function: bool = False,
@@ -109,11 +110,11 @@ def memoize(
         if version is not None:
             transform += f"@{version}"
 
-        memoize_info = {}
+        memoize_info = dict(ignore_cache=ignore_cache)
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-
+            nonlocal memoize_info
             kwargs_for_fingerprint = kwargs.copy()
 
             if args:
@@ -136,7 +137,13 @@ def memoize(
             kwargs_for_fingerprint = _filter_kwargs(
                 kwargs_for_fingerprint, use_kwargs, ignore_kwargs
             )
-            _ = kwargs_for_fingerprint.pop("ignore_cache", None)
+
+            # If ignore_cache kwarg is provided, override decorator value
+            ignore_cache_kwarg = kwargs_for_fingerprint.pop(
+                "memoizer_ignore_cache", None
+            )
+            if ignore_cache_kwarg is not None:
+                memoize_info["ignore_cache"] = ignore_cache_kwarg
 
             if randomized_function:
                 # randomized functions have `seed` and `generator` parameters
@@ -149,12 +156,18 @@ def memoize(
             out = None
             if cache is not None:
                 out, cache_hit = _get_item(
-                    cache, fingerprint, func, self, expire, *args, **kwargs
+                    cache,
+                    fingerprint,
+                    func,
+                    self,
+                    expire,
+                    memoize_info["ignore_cache"],
+                    *args,
+                    **kwargs,
                 )
             else:
                 out = _call_func(func, self, *args, **kwargs)
 
-            nonlocal memoize_info
             memoize_info["fingerprint"] = fingerprint
             memoize_info["cache_hit"] = cache_hit
 
