@@ -103,7 +103,7 @@ def _download_model(
     model_dir="artifacts",
     model_type="intrinsic_importance",
     model_id=None,
-    model_url=None
+    model_url=None,
 ):
     if model_id is None or model_url is None:
         model_id, model_url = get_model_info(
@@ -114,13 +114,14 @@ def _download_model(
     return model_path
 
 
-def load_hf_model(model_path, model_type, pipeline_type=None, use_bettertransformer=True):
-
+def load_hf_model(
+    model_path, model_type=None, pipeline_type=None, use_bettertransformer=True
+):
     tokenizer = AutoTokenizer.from_pretrained(model_path, padding=True, truncation=True)
+    if model_type:
+        model_type = model_type.replace("-", "_")
 
-    model_type = model_type.replace("-", "_")
-
-    if pipeline_type is None and model_type == "intrinsic_importance":
+    if pipeline_type is None and model_type and model_type == "intrinsic_importance":
         pipeline_type = "summarization"
 
     if pipeline_type == "text-classification":
@@ -129,7 +130,12 @@ def load_hf_model(model_path, model_type, pipeline_type=None, use_bettertransfor
         model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
 
     if use_bettertransformer:
-        model = BetterTransformer.transform(model, keep_original_model=True)
+        try:
+            model = BetterTransformer.transform(model, keep_original_model=True)
+        except NotImplementedError:
+            logger.warning(
+                f"Model {model_path} not yet supported by BetterTransformer."
+            )
 
     try:
         device = torch.cuda.current_device()
@@ -153,15 +159,15 @@ def load_model(
         model_path = model_domain_or_path
     else:
         model_path = _download_model(
-            model_domain_or_path, model_dir, model_type=model_type, model_id=model_id, model_url=model_url
+            model_domain_or_path,
+            model_dir,
+            model_type=model_type,
+            model_id=model_id,
+            model_url=model_url,
         )
 
     logger.info(f"Loading {model_type} model from {model_path}...")
-
-    model = load_hf_model(
-        model_path, model_type, pipeline_type=pipeline_type
-    )
-
+    model = load_hf_model(model_path, model_type, pipeline_type=pipeline_type)
     return model, model_path
 
 
@@ -221,13 +227,13 @@ def fix_sent_tokenization(sents, min_words):
 
             prev_ends_with_ie = re.match(r".*i\s*\.\s*e\.$", previous_sent)
             prev_is_short_sentence = len(previous_sent.split()) < min_words
-            is_short_sentence = len(sent.split()) < min_words
+            # is_short_sentence = len(sent.split()) < min_words
             start_with_non_alpha = re.match(r"^([^\w]|\d)+.*", sent.strip())
 
             must_merge = (
                 prev_ends_with_ie
                 or prev_is_short_sentence
-                or is_short_sentence
+                # or is_short_sentence
                 or start_with_non_alpha
             )
             mergeable.append(must_merge)
