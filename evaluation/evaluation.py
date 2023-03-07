@@ -1,14 +1,25 @@
-import pathlib
 import json
 import logging
+import os
+import pathlib
 
+import datasets
+import fire
 import numpy as np
 import pandas as pd
-from rouge_score import scoring
 from p_tqdm import p_map
+from rouge_score import scoring
 
-from .utils import log_summary, log_scores, word_tokenize, aggregate_scores
-from factorsum.utils import apply_word_limit, sent_tokenize
+from .inference import predict_summaries
+from .utils import (
+    aggregate_scores,
+    config_logging,
+    get_output_path,
+    log_summary,
+    log_scores,
+    sent_tokenize,
+    word_tokenize,
+)
 from factorsum.metrics import summarization_metrics
 
 logger = logging.getLogger(__name__)
@@ -62,14 +73,7 @@ def _aggregate_results(results):
     return results
 
 
-def eval_job(
-    pred,
-    target,
-    doc_id,
-    good_score=None,
-    bad_score=None,
-    max_target_tokens=None,
-):
+def _get_text_statistics(target, summary):
     sents_per_summary = []
     tokens_per_summary = []
     tokens_per_summary_sent = []
@@ -77,65 +81,32 @@ def eval_job(
     tokens_per_abstract = []
     tokens_per_abstract_sent = []
     length_diffs = []
-    rouge_scores = []
 
-    if type(pred) == list:
-        pred_sents = pred
-    elif "\n" in pred:
-        pred_sents = pred.split("\n")
-    else:
-        pred_sents = sent_tokenize(pred)
-
-    pred = "\n".join(pred_sents)
-
-    try:
-        if target is None or str(target) == "nan" or len(target) == 0:
-            return
-    except:
-        logger.error(f"Invalid target summary: {target}")
-
-    target = apply_word_limit(target, max_target_tokens)
-    target_is_list = type(target) == list
-    if target_is_list:
+    if isinstance(target, list):
+        target_sents = target
         target = "\n".join(target)
-
-    pred_words = word_tokenize(pred)
-    target_words = word_tokenize(target)
-
-    sents_per_summary_doc = len(pred_sents)
-    tokens_per_summary_sent_doc = []
-    for sent in pred_sents:
-        words = word_tokenize(sent)
-        tokens_per_summary_sent_doc.append(len(words))
-    if len(tokens_per_summary_sent_doc):
-        tokens_per_summary_sent_doc = np.mean(tokens_per_summary_sent_doc)
-    else:
-        tokens_per_summary_sent_doc = 0
-    tokens_per_summary_doc = len(pred_words)
-    length_diff = len(pred_words) - len(target_words)
-
-    length_diffs.append(length_diff)
-    sents_per_summary.append(sents_per_summary_doc)
-    tokens_per_summary_sent.append(tokens_per_summary_sent_doc)
-    tokens_per_summary.append(tokens_per_summary_doc)
-
-    if target_is_list:
-        target_sents = target.split("\n")
     else:
         target_sents = sent_tokenize(target)
+
+    if isinstance(summary, list):
+        summary_sents = summary
+        summary = "\n".join(summary)
+    else:
+        summary_sents = sent_tokenize(summary)
+
+    pred_words = word_tokenize(summary)
+    target_words = word_tokenize(target)
+
+    length_diff = len(pred_words) - len(target_words)
+    length_diffs.append(length_diff)
+    sents_per_summary.append(len(summary_sents))
+    tokens_per_summary_sent.append(np.mean([len(s.split()) for s in summary_sents]))
+    tokens_per_summary.append(len(pred_words))
     sents_per_abstract.append(len(target_sents))
     tokens_per_abstract_sent.append(np.mean([len(s.split()) for s in target_sents]))
     tokens_per_abstract.append(len(target_words))
 
-    metrics = summarization_metrics(pred_sents, target_summary=target)
-    rouge_score = metrics["rouge"]
-
-    if rouge_score:
-        rouge_scores.append(rouge_score)
-
-    log_summary(doc_id, pred, target, metrics, bad_score, good_score)
-
-    results = dict(
+    statistics = dict(
         sents_per_summary=sents_per_summary,
         tokens_per_summary=tokens_per_summary,
         tokens_per_summary_sent=tokens_per_summary_sent,
@@ -143,8 +114,35 @@ def eval_job(
         tokens_per_abstract=tokens_per_abstract,
         tokens_per_abstract_sent=tokens_per_abstract_sent,
         length_diffs=length_diffs,
-        rouge_scores=rouge_scores,
     )
+    return statistics
+
+
+def eval_job(
+    pred,
+    target,
+    doc_id,
+    good_score=None,
+    bad_score=None,
+):
+    rouge_scores = []
+
+    try:
+        if target is None or str(target) == "nan" or len(target) == 0:
+            return
+    except:
+        logger.error(f"Invalid target summary: {target}")
+
+    metrics = summarization_metrics(pred, target_summary=target)
+    rouge_score = metrics["rouge"]
+
+    if rouge_score:
+        rouge_scores.append(rouge_score)
+
+    log_summary(doc_id, pred, target, metrics, bad_score, good_score)
+
+    stats = _get_text_statistics(target, pred)
+    results = dict(rouge_scores=rouge_scores, **stats)
     return results
 
 
@@ -152,9 +150,8 @@ def evaluate(
     preds,
     targets,
     scores=None,
-    max_target_tokens=None,
     save_preds_to=None,
-    n_samples=1000,
+    n_samples=None,
     good_score=None,
     bad_score=None,
     seed=17,
@@ -171,7 +168,6 @@ def evaluate(
             doc_id,
             good_score=good_score,
             bad_score=bad_score,
-            max_target_tokens=max_target_tokens,
         ),
         _preds,
         _targets,
@@ -179,33 +175,32 @@ def evaluate(
     )
 
     results = _aggregate_results(results)
-    
     scores_df = {}
 
     if scores:
         for score_key in scores:
             agg_scores = aggregate_scores(scores[score_key])
             results["scores"][score_key] = agg_scores
-            
+
             for sample_scores in scores[score_key]:
                 for sub_key, value in sample_scores.items():
-                    values = scores_df.get(f'{score_key}_{sub_key}', [])
+                    values = scores_df.get(f"{score_key}_{sub_key}", [])
                     if isinstance(sample_scores[sub_key], list):
                         value = sample_scores[sub_key][0]
                     else:
                         value = sample_scores[sub_key]
                     values.append(value)
-                    scores_df[f'{score_key}_{sub_key}'] = values
+                    scores_df[f"{score_key}_{sub_key}"] = values
 
-    for scores in results['rouge_scores']:
+    for scores in results["rouge_scores"]:
         for score_key, score in scores.items():
-            for sub_key in ['precision', 'recall', 'fmeasure']:
-                values = scores_df.get(f'{score_key}_{sub_key}', [])
+            for sub_key in ["precision", "recall", "fmeasure"]:
+                values = scores_df.get(f"{score_key}_{sub_key}", [])
                 value = getattr(score, sub_key)
                 values.append(value)
-                scores_df[f'{score_key}_{sub_key}'] = values
+                scores_df[f"{score_key}_{sub_key}"] = values
 
-    _print_eval_metrics(results)        
+    _print_eval_metrics(results)
 
     if save_preds_to:
         filepath = pathlib.Path(save_preds_to)
@@ -224,3 +219,65 @@ def evaluate(
             file.write(json.dumps(results["scores"], indent=2))
 
     return results["scores"]
+
+
+def evaluate_model(
+    model_name="google/pegasus-arxiv",
+    dataset_path="scientific_papers",
+    dataset_name="arxiv",
+    split="test",
+    source_key="article",
+    target_key="abstract",
+    max_samples=None,
+    output_dir=None,
+    cache_start=0,
+    cache_end=None,
+    cache_dir=None,
+    seed=17,
+):
+    timestr = config_logging(dataset_name, split, output_dir)
+    eval_data = datasets.load_dataset(dataset_path, dataset_name, cache_dir=cache_dir)
+    eval_data = eval_data[split]
+    sources = eval_data[source_key][:max_samples]
+    targets = eval_data[target_key][:max_samples]
+
+    logger.info("Reference summary (sanity check)")
+
+    evaluate(
+        targets,
+        targets,
+        n_samples=max_samples,
+        seed=seed,
+    )
+
+    if isinstance(model_name, (list, tuple)):
+        model_names = model_name
+    else:
+        model_names = [model_name]
+
+    for model_name in model_names:
+        logger.info(f"Evaluating {model_name}")
+        preds = predict_summaries(
+            model_name,
+            sources,
+            cache_start=cache_start,
+            cache_end=cache_end,
+        )
+        save_to = get_output_path(
+            output_dir,
+            dataset_name,
+            split,
+            timestr=timestr,
+            custom_suffix=model_name.replace("/", "_"),
+        )
+        evaluate(
+            preds,
+            targets,
+            save_preds_to=save_to,
+            seed=seed,
+        )
+
+
+if __name__ == "__main__":
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    fire.Fire(evaluate_model)

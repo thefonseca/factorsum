@@ -26,10 +26,14 @@ def get_progress_bar(**kwargs):
     )
 
 
-def add_progress_task(progress, description, total=100.0, existing_ok=True, reset_existing=True):
-    tasks = [t_id for t_id, t in progress._tasks.items() if t.description == description]
+def add_progress_task(
+    progress, description, total=100.0, existing_ok=True, reset_existing=True
+):
+    tasks = [
+        t_id for t_id, t in progress._tasks.items() if t.description == description
+    ]
     task_exists = len(tasks) > 0
-    
+
     if existing_ok or not task_exists:
         return progress.add_task(description, total=total)
     else:
@@ -43,6 +47,14 @@ def word_tokenize(text):
         text = " ".join(text)
     words = nltk.word_tokenize(text)
     return words
+
+
+def sent_tokenize(text):
+    if type(text) == str:
+        sents = nltk.sent_tokenize(text)
+    else:
+        sents = text
+    return sents
 
 
 def get_avg_sentence_length(docs):
@@ -93,10 +105,10 @@ def log_scores(name, scores):
     if len(scores) == 0:
         return
 
-    if name == 'rouge':
+    if name == "rouge":
         log_rouge_scores(scores)
     else:
-        info = [f'{name}:']
+        info = [f"{name}:"]
         for key in scores.keys():
             if type(scores[key]) == dict:
                 _scores = [f"{scores[key][x]:.3f}" for x in ["low", "mean", "high"]]
@@ -149,7 +161,10 @@ def compute_metric(references, candidates, metric_fn, progress=None, **metric_kw
 
     results = []
     task = add_progress_task(
-        progress, f"Computing {metric_fn.__name__}...", total=len(references), existing_ok=False
+        progress,
+        f"Computing {metric_fn.__name__}...",
+        total=len(references),
+        existing_ok=False,
     )
     with progress:
         for ref, cand in zip(references, candidates):
@@ -191,10 +206,10 @@ def get_output_path(
     save_to = None
 
     if output_dir:
-        content = content if content else 'no'
-        budget = budget if budget else 'no'
+        content = content if content else "no"
+        budget = budget if budget else "no"
         suffix = f"{content}_content-{budget}_budget"
-        
+
         if custom_suffix:
             suffix = f"{suffix}-{custom_suffix}"
 

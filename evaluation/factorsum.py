@@ -5,12 +5,7 @@ import os
 import fire
 from p_tqdm import p_map
 
-from .utils import (
-    get_output_path,
-    config_logging,
-    get_progress_bar,
-    add_progress_task
-)
+from .utils import get_output_path, config_logging, get_progress_bar, add_progress_task
 from .evaluation import evaluate as evaluate_summaries
 from .utils import compute_metric
 from factorsum.config import model_params
@@ -25,8 +20,6 @@ def default_eval_args(params, max_samples, seed):
     default_kwargs = dict(
         strict_budget=False,
         oracle_budget=False,
-        max_target_tokens=None,
-        # content_weight=params["content_weight"],
         min_words_per_view=params["min_words_per_view"],
         n_samples=max_samples,
         text_guidance=None,
@@ -296,7 +289,7 @@ def evaluate(
         sample_factor=sample_factor,
         intrinsic_model_id=intrinsic_model_id,
         min_words_per_view=min_words_per_view,
-        **model_kwargs
+        **model_kwargs,
     )
 
     if dataset is None:
@@ -325,9 +318,11 @@ def evaluate(
     if verbose is None and len(doc_ids) == 1:
         verbose = True
 
-    model = FactorSum(training_domain, 
-                      model_id=params.get('intrinsic_importance_model_id'),
-                      model_url=params.get('intrinsic_importance_model_url'))
+    model = FactorSum(
+        training_domain,
+        model_id=params.get("intrinsic_importance_model_id"),
+        model_url=params.get("intrinsic_importance_model_url"),
+    )
     target_contents = []
     target_budgets = []
     source_budgets = []
@@ -427,11 +422,11 @@ def evaluate(
             f"samples: {len(custom_guidance)} != {len(doc_ids)}"
         )
 
-    # if progress is None:
-    #     progress = get_progress_bar()
-
     guidance_task = add_progress_task(
-        progress, "Pre-computing guidance for views...", total=len(summary_views), existing_ok=False
+        progress,
+        "Pre-computing guidance for views...",
+        total=len(summary_views),
+        existing_ok=False,
     )
     with progress:
         for idx, view_sentences in enumerate(summary_views):
@@ -493,14 +488,16 @@ def evaluate(
         timestr=timestr,
     )
 
-    scores = {'guidance_scores': guidance_scores}
+    scores = {"guidance_scores": guidance_scores}
     if custom_metrics:
         for metric_key, metric_fn in custom_metrics.items():
-            concept_scores = compute_metric(targets, 
-                                            summaries, 
-                                            metric_fn, 
-                                            progress=progress,
-                                            min_words=params['min_words_per_view'])
+            concept_scores = compute_metric(
+                targets,
+                summaries,
+                metric_fn,
+                progress=progress,
+                min_words=params["min_words_per_view"],
+            )
             scores[metric_key] = concept_scores
 
     evaluate_summaries(
