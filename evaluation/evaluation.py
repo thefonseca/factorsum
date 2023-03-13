@@ -205,7 +205,7 @@ def evaluate(
     if save_preds_to:
         filepath = pathlib.Path(save_preds_to)
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        preds_df = pd.DataFrame({"predictions": _preds, "targets": _targets})
+        preds_df = pd.DataFrame({"prediction": _preds, "target": _targets})
         preds_df.to_csv(save_preds_to, index=False)
 
         scores_df = pd.DataFrame(scores_df)
@@ -228,6 +228,7 @@ def evaluate_model(
     split="test",
     source_key="article",
     target_key="abstract",
+    prediction_key="prediction",
     max_samples=None,
     output_dir=None,
     cache_start=0,
@@ -255,14 +256,29 @@ def evaluate_model(
     else:
         model_names = [model_name]
 
+    def is_csv_file(path):
+        return os.path.exists(path) and path[-4:].lower() == ".csv"
+
     for model_name in model_names:
         logger.info(f"Evaluating {model_name}")
-        preds = predict_summaries(
-            model_name,
-            sources,
-            cache_start=cache_start,
-            cache_end=cache_end,
-        )
+
+        if is_csv_file(model_name):
+            logger.info(f"Loading predictions from {model_name}...")
+            summary_data = pd.read_csv(model_name)
+            preds = summary_data[prediction_key].values[:max_samples]
+            if len(preds) != len(sources):
+                raise ValueError(
+                    f"Number of predictions from {model_name} ({len(summary_data)}) "
+                    f"is incompatible with number of source documents ({len(sources)})."
+                )
+        else:
+            preds = predict_summaries(
+                model_name,
+                sources,
+                cache_start=cache_start,
+                cache_end=cache_end,
+            )
+
         save_to = get_output_path(
             output_dir,
             dataset_name,
