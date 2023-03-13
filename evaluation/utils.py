@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import textwrap
 import logging
 import time
@@ -254,12 +255,13 @@ def get_log_path(
         return log_path
 
 
-def config_logging(
-    dataset_name, split, output_dir, training_domain=None, prefix="factorsum"
-):
+def config_logging(dataset_name, split, output_dir, training_domain=None, prefix=None):
     timestr = time.strftime("%Y%m%d-%H%M%S")
+    log_dir = get_output_path(output_dir, dataset_name, split, timestr=timestr)
+    if log_dir:
+        log_dir = Path(log_dir).parent
     log_path = get_log_path(
-        output_dir,
+        log_dir,
         dataset_name,
         split,
         training_domain=training_domain,
@@ -268,7 +270,7 @@ def config_logging(
     )
     handlers = [RichHandler()]
     if log_path:
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(log_dir, exist_ok=True)
         handlers.append(logging.FileHandler(log_path, mode="w"))
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO"),
