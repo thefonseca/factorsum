@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "factorsum"
+version = "1.0.0"
+authors = [
+  { name="Marcio Fonseca", email="thefonseca@gmail.com" },
+]
+description = "Factorizing Content and Budget Decisions in Abstractive Summarization of Long Documents"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+  "datasets>=2.9.1",
+  "fire>=0.5.0",
+  "p_tqdm>=1.4.0",
+  "rouge_score>=0.1.2",
+  "torch>=2.0.0",
+  "transformers>=4.27.1",
+  "rich>=13.3.2",
+  "textdistance>=4.5.0",
+  "diskcache>=5.4.0",
+  "accelerate>=0.17.1",
+  "summa>=1.2.0",
+  "optimum>=1.6.3",
+  "requests>=2.28.1",
+  "gdown>=4.5.1",
+  "wandb>=0.13.4"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/thefonseca/factorsum"
+"Bug Tracker" = "https://github.com/thefonseca/factorsum/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["factorsum"]
