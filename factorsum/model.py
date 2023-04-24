@@ -58,22 +58,25 @@ class FactorSum:
     @staticmethod
     @lru_cache(maxsize=1)
     def _load_intrinsic_model(model_domain_or_path, model_id, model_url=None):
-        model, _ = load_model(model_domain_or_path=model_domain_or_path,
-                              model_type="intrinsic_importance", 
-                              model_id=model_id, model_url=model_url)
+        model, _ = load_model(
+            model_domain_or_path=model_domain_or_path,
+            model_type="intrinsic_importance",
+            model_id=model_id,
+            model_url=model_url,
+        )
         return model
 
     @staticmethod
     @lru_cache(maxsize=None)
     @memoize()
     def _get_summary_views(source_views, model_name_or_path, model_id, model_url=None):
-        model = FactorSum._load_intrinsic_model(model_name_or_path, 
-                                                model_id=model_id, 
-                                                model_url=model_url)
-        
+        model = FactorSum._load_intrinsic_model(
+            model_name_or_path, model_id=model_id, model_url=model_url
+        )
+
         logger.debug(f"Generating summary views for {len(source_views)} source views")
-        views = []  
-        
+        views = []
+
         if isinstance(source_views, tuple):
             source_views = list(source_views)
 
@@ -125,7 +128,7 @@ class FactorSum:
         return summary
 
     @staticmethod
-    def _find_best_summary(
+    def find_best_summary(
         summary_views,
         target_budget,
         constraints,
@@ -229,10 +232,15 @@ class FactorSum:
         )
 
         if isinstance(doc_views["source_views"], (list, tuple)):
-            source_views = tuple(["\n".join(view) for view in doc_views["source_views"]])
+            source_views = tuple(
+                ["\n".join(view) for view in doc_views["source_views"]]
+            )
 
         views = FactorSum._get_summary_views(
-            source_views, self.model_name_or_path, self.model_id, model_url=self.model_url
+            source_views,
+            self.model_name_or_path,
+            self.model_id,
+            model_url=self.model_url,
         )
 
         if return_source_sents:
@@ -255,6 +263,7 @@ class FactorSum:
         self,
         source,
         target_budget,
+        summary_views=None,
         source_target_budget=0,
         target_content=None,
         custom_guidance=None,
@@ -269,15 +278,21 @@ class FactorSum:
         verbose=False,
         seed=17,
     ):
-        summary_views, source_sents = self.generate_summary_views(
-            source,
-            sample_factor=sample_factor,
-            views_per_doc=views_per_doc,
-            min_words_per_view=min_words_per_view,
-            sent_tokenize_fn=sent_tokenize_fn,
-            return_source_sents=True,
-            seed=seed,
-        )
+        if sent_tokenize_fn is None:
+            sent_tokenize_fn = sent_tokenize
+
+        if summary_views:
+            source_sents = sent_tokenize_fn(source, min_words=min_words_per_view)
+        else:
+            summary_views, source_sents = self.generate_summary_views(
+                source,
+                sample_factor=sample_factor,
+                views_per_doc=views_per_doc,
+                min_words_per_view=min_words_per_view,
+                sent_tokenize_fn=sent_tokenize_fn,
+                return_source_sents=True,
+                seed=seed,
+            )
 
         if target_content is None and source_target_budget:
             target_content = get_source_guidance(source_sents, source_target_budget)
@@ -297,7 +312,7 @@ class FactorSum:
             target_budget=target_budget, custom_constraints=custom_constraints
         )
 
-        summary, guidance_scores = FactorSum._find_best_summary(
+        summary, guidance_scores = FactorSum.find_best_summary(
             summary_views,
             target_budget,
             constraints,
@@ -348,7 +363,7 @@ def summarize(
             logger.info(f"Source token budget: {source_token_budget}")
 
     model = FactorSum(training_domain, model_id=model_id, model_url=model_url)
-    
+
     summary, guidance_scores = model.summarize(
         source,
         target_budget=target_budget,
