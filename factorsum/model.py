@@ -333,6 +333,7 @@ class FactorSum:
 def summarize(
     source,
     training_domain="arxiv",
+    model_path=None,
     model_id=None,
     model_url=None,
     target=None,
@@ -362,7 +363,9 @@ def summarize(
             logger.info(f"Content guidance: {content_guidance_type}")
             logger.info(f"Source token budget: {source_token_budget}")
 
-    model = FactorSum(training_domain, model_id=model_id, model_url=model_url)
+    if model_path is None:
+        model_path = training_domain
+    model = FactorSum(model_path, model_id=model_id, model_url=model_url)
 
     summary, guidance_scores = model.summarize(
         source,

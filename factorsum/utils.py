@@ -81,8 +81,8 @@ def download_resource(url, local_path, extract_zip=True):
 def get_model_path(model_type, model_id, model_dir="artifacts"):
     model_type = model_type.replace("-", "_")
     model_path = f"model-{model_id}"
-    if ":v0" not in model_path:
-        model_path = f"{model_path}:v0"
+    # if ":v0" not in model_path:
+    #     model_path = f"{model_path}:v0"
     model_path = Path(model_dir) / model_path
     return model_path
 

@@ -218,6 +218,7 @@ def summarize_job(
     views_per_doc,
     min_words_per_view,
     sent_tokenize_fn,
+    model_path=None,
     model_id=None,
     model_url=None,
     target=None,
@@ -226,6 +227,7 @@ def summarize_job(
     summary, guidance_scores = summarize(
         source,
         training_domain,
+        model_path=model_path,
         model_id=model_id,
         model_url=model_url,
         target=target,
@@ -294,7 +296,7 @@ def evaluate(
 
     if dataset is None:
         dataset = load_dataset(
-            dataset_path=params["dataset_path"],
+            dataset_path=params.get("dataset_path"),
             dataset_name=dataset_name,
             split=split,
             data_dir=data_dir,
@@ -318,8 +320,9 @@ def evaluate(
     if verbose is None and len(doc_ids) == 1:
         verbose = True
 
+    model_name_or_path=params.get("intrinsic_importance_model_path", training_domain)
     model = FactorSum(
-        training_domain,
+        model_name_or_path,
         model_id=params.get("intrinsic_importance_model_id"),
         model_url=params.get("intrinsic_importance_model_url"),
     )
@@ -453,6 +456,7 @@ def evaluate(
         lambda source, target, target_budget, source_budget, target_content, guidance: summarize_job(
             source,
             training_domain,
+            model_path=model.model_name_or_path,
             model_id=model.model_id,
             model_url=model.model_url,
             target_budget=target_budget,

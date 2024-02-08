@@ -137,25 +137,30 @@ def _create_views_dataset(
 
 
 def _data_split_filename(
-    dataset_path,
-    dataset_name,
     split,
+    dataset_path=None,
+    dataset_name=None,
     sample_type=None,
     sample_factor=None,
     views_per_doc=None,
 ):
+    if dataset_path:
+        dataset_path = dataset_path.replace("/", "_")
 
-    dataset_path = dataset_path.replace("/", "_")
-
-    if sample_type and sample_factor and views_per_doc:
+    if sample_type and sample_factor and views_per_doc and dataset_name:
         filename = f"{dataset_name}-{sample_type}_k_{sample_factor}_samples_{views_per_doc}_{split}.pkl"
-    elif sample_type and sample_factor:
+    elif sample_type and sample_factor and views_per_doc:
+        filename = f"{sample_type}_k_{sample_factor}_samples_{views_per_doc}_{split}.pkl"
+    elif sample_type and sample_factor and dataset_name:
         filename = f"{dataset_name}-{sample_type}_k_{sample_factor}_{split}.pkl"
+    elif sample_type and sample_factor:
+        filename = f"{sample_type}_k_{sample_factor}_{split}.pkl"
+    elif dataset_name in ["arxiv", "pubmed"] and dataset_path and dataset_name:
+        filename = f"{dataset_path}_{dataset_name}_{split}.pkl"
+    elif dataset_path:
+        filename = f"{dataset_path}_{split}.pkl"
     else:
-        if dataset_name in ["arxiv", "pubmed"]:
-            filename = f"{dataset_path}_{dataset_name}_{split}.pkl"
-        else:
-            filename = f"{dataset_path}_{split}.pkl"
+        filename = f"{split}.pkl"
 
     return filename
 
@@ -177,9 +182,9 @@ def _create_dataset(
 
     for _split in splits:
         filename = _data_split_filename(
-            dataset_path,
-            dataset_name,
             _split,
+            dataset_path=dataset_path,
+            dataset_name=dataset_name,
             sample_type=sample_type,
             sample_factor=sample_factor,
             views_per_doc=views_per_doc,
@@ -236,11 +241,10 @@ def _load_dataset_split(
     data_dir="data",
     include_oracles=True,
 ):
-
     filename = _data_split_filename(
-        dataset_path,
-        dataset_name,
         split,
+        dataset_path=dataset_path,
+        dataset_name=dataset_name,
         sample_type=sample_type,
         sample_factor=sample_factor,
         views_per_doc=views_per_doc,
@@ -512,9 +516,9 @@ def prepare_dataset(
     for split in splits:
         logger.info(f"Preparing {dataset_name} {split} set...")
         data_file = _data_split_filename(
-            dataset_path,
-            dataset_name,
             split,
+            dataset_path=dataset_path,
+            dataset_name=dataset_name,
             sample_type=sample_type,
             sample_factor=sample_factor,
             views_per_doc=views_per_doc,
