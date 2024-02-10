@@ -21,7 +21,7 @@ def _get_params():
     # we adjust budgets so that the average predicted summary words
     # is close to the validation set average reference summary words
     params["pubmed"] = {}
-    params["pubmed"]["intrinsic_importance_model_id"] = "cku41vkj"
+    params["pubmed"]["intrinsic_importance_model_id"] = "cku41vkj:v0"
     params["pubmed"][
         "intrinsic_importance_model_url"
     ] = "https://www.dropbox.com/s/8birb30qhjxyqnr/model-cku41vkj%20v0.zip?dl=1"
@@ -44,7 +44,7 @@ def _get_params():
     params["pubmed"]["dataset_path"] = "scientific_papers"
 
     params["arxiv"] = {}
-    params["arxiv"]["intrinsic_importance_model_id"] = "rs86h5g0"
+    params["arxiv"]["intrinsic_importance_model_id"] = "rs86h5g0:v0"
     params["arxiv"][
         "intrinsic_importance_model_url"
     ] = "https://www.dropbox.com/s/apgdmfqqwz22p7e/model-rs86h5g0%20v0.zip?dl=1"
@@ -67,7 +67,7 @@ def _get_params():
     params["arxiv"]["dataset_path"] = "scientific_papers"
 
     params["govreport"] = {}
-    params["govreport"]["intrinsic_importance_model_id"] = "2oklw1wt"
+    params["govreport"]["intrinsic_importance_model_id"] = "2oklw1wt:v0"
     params["govreport"][
         "intrinsic_importance_model_url"
     ] = "https://www.dropbox.com/s/tramsr8g27smuju/model-2oklw1wt%20v0.zip?dl=1"

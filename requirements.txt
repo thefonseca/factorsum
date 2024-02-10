@@ -1,4 +1,4 @@
-transformers==4.36.0
+transformers==4.37.2
 datasets==2.9.0
 fire==0.4.0
 gdown==4.5.1
